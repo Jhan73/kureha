@@ -53,13 +53,13 @@ For **feature-branch-chain**: PR 1 targets the `kureha-mvp` tracker branch; PR 2
 
 ## Phase 1: Tooling & Repo Foundation
 
-- [ ] 1.1 `backend/pyproject.toml`: add fastapi, uvicorn, sqlalchemy[asyncio], asyncpg, psycopg[binary,pool], alembic, langgraph, langgraph-checkpoint-postgres, langchain, pydantic-settings, cachetools, boto3, google-auth, google-api-python-client, pyjwt, import-linter, pytest, pytest-asyncio, httpx. Ref §1.
-- [ ] 1.2 Configure `import-linter` contracts: platform→modules→governance→shared_kernel one-way; no cross-module business imports; no `platform/` import inside `modules/`. Ref §2.4.
-- [ ] 1.3 `frontend/package.json` + `next.config.ts`: add react-markdown, rehype-sanitize; set `output: 'export'`. Ref §2.5, §8.8.
-- [ ] 1.4 `infra/localstack/init/*.sh` (secrets, s3, sns, cloudwatch) + `infra/postgres/init/`. Ref §22.5.
-- [ ] 1.5 `docker-compose.yml` (localstack, postgres, api) + `.env.local`. Ref §22.3/22.4.
-- [ ] 1.6 `backend/Dockerfile` (prod) + `backend/Dockerfile.dev` (hot-reload). Ref §2.5.
-- [ ] 1.7 Set up Alembic in `backend/migrations/`, async engine wiring.
+- [x] 1.1 `backend/pyproject.toml`: add fastapi, uvicorn, sqlalchemy[asyncio], asyncpg, psycopg[binary,pool], alembic, langgraph, langgraph-checkpoint-postgres, langchain, pydantic-settings, cachetools, boto3, google-auth, google-api-python-client, pyjwt, import-linter, pytest, pytest-asyncio, httpx. Ref §1.
+- [x] 1.2 Configure `import-linter` contracts: platform→modules→governance→shared_kernel one-way; no cross-module business imports; no `platform/` import inside `modules/`. Ref §2.4.
+- [x] 1.3 `frontend/package.json` + `next.config.ts`: add react-markdown, rehype-sanitize; set `output: 'export'`. Ref §2.5, §8.8.
+- [x] 1.4 `infra/localstack/init/*.sh` (secrets, s3, sns, cloudwatch) + `infra/postgres/init/`. Ref §22.5.
+- [x] 1.5 `docker-compose.yml` (localstack, postgres, api) + `.env.local`. Ref §22.3/22.4.
+- [x] 1.6 `backend/Dockerfile` (prod) + `backend/Dockerfile.dev` (hot-reload). Ref §2.5.
+- [x] 1.7 Set up Alembic in `backend/migrations/`, async engine wiring.
 
 ## Phase 2: Database Schema + RLS
 
