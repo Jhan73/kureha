@@ -25,6 +25,15 @@ class Settings(BaseSettings):
         "postgresql+asyncpg://app_user:dev_only_password@localhost:5432/kureha_dev"
     )
 
+    # Restricted, non-superuser, non-BYPASSRLS role (design.md §4.2: "sin
+    # BYPASSRLS") -- created by infra/postgres/init/02_app_runtime_role.sql.
+    # RLS policies are only meaningfully enforced against this role; `app_user`
+    # above is the Postgres bootstrap superuser and unconditionally bypasses
+    # RLS, so it must never be used to validate RLS behavior (tasks.md 2.9).
+    runtime_database_url: str = (
+        "postgresql+asyncpg://app_runtime:dev_only_password@localhost:5432/kureha_dev"
+    )
+
     # boto3 clients read this and fall back to real AWS when it's empty
     # (design.md §22.6): None/"" -> AWS real, "http://localhost:4566" -> LocalStack.
     aws_endpoint_url: str | None = None

@@ -100,3 +100,36 @@ async def tenant_id(db_conn: AsyncConnection) -> str:
     from tests.schema.helpers import make_tenant
 
     return await make_tenant(db_conn)
+
+
+@pytest.fixture
+async def rls_conn() -> AsyncIterator[AsyncConnection]:
+    """One transactional connection per test, authenticated as `app_runtime`
+    -- a restricted, non-superuser, NOBYPASSRLS role (design.md §4.2) --
+    instead of `app_user` (the Postgres bootstrap superuser used by `db_conn`
+    above, which unconditionally bypasses RLS regardless of `ENABLE`/`FORCE
+    ROW LEVEL SECURITY`).
+
+    Any test asserting RLS isolation (cross-tenant/cross-site/cross-role
+    access returns zero rows, tasks.md task 2.9) MUST use this fixture, not
+    `db_conn` -- a test run against `db_conn` would pass whether or not the
+    policies are correct, since app_user bypasses them entirely. See
+    `tests/rls/test_app_runtime_role.py` for an explicit assertion that this
+    role is neither superuser nor BYPASSRLS, so a future regression (e.g.
+    someone repointing `runtime_database_url` at `app_user`) fails loudly.
+
+    Fixture rows (tenants/sites/patients/etc.) must still be inserted via
+    `db_conn` (or a `db_conn`-based helper) before switching to `rls_conn` to
+    read/write them under RLS -- `app_runtime` has no INSERT path around a
+    denying policy, same as any real request.
+    """
+    test_engine = create_engine(settings.runtime_database_url, poolclass=NullPool)
+    try:
+        async with test_engine.connect() as conn:
+            trans = await conn.begin()
+            try:
+                yield conn
+            finally:
+                await trans.rollback()
+    finally:
+        await test_engine.dispose()

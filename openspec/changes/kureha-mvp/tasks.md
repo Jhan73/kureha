@@ -67,13 +67,13 @@ For **feature-branch-chain**: PR 1 targets the `kureha-mvp` tracker branch; PR 2
 - [x] 2.2 Migration: `availability`, `appointments` (`EXCLUDE USING gist` anti double-booking). Ref §4.1.
 - [x] 2.3 Migration: `consent_policies`, `consents` (tenant-scoped, one current per tenant). Ref §4.1, §11.
 - [x] 2.4 Migration: `audit_logs` + append-only triggers + hash-chain trigger with `pg_advisory_xact_lock`. Ref §4.3.
-- [ ] 2.5 Migration: `action_permissions` (with `bulk_cancel_threshold`), `role_permissions`, `user_permissions`. Ref §4.4, §5.
-- [ ] 2.6 Migration: `staff_members`, `shifts` (`EXCLUDE gist` no-overlap). Ref §4.4, §6.
-- [ ] 2.7 Migration: `calendar_credentials`, `calendar_sync` (`idempotency_key`, `UNIQUE(tenant_id, idempotency_key)`). Ref §4.4, §7.6.
-- [ ] 2.8 Migration: `user_sessions`, `rate_counters`, `tenants.llm_daily_budget_tokens`. Ref §4.4, §17.4, §19.
-- [ ] 2.9 RLS policies: `ENABLE`+`FORCE` on every tenant table per §4.2 patterns (tenant+site+role for most; tenant-wide self-policy for `patients`/`consents`/`calendar_credentials`).
-- [ ] 2.10 `AsyncPostgresSaver.setup()` + RLS on `checkpoints`/`checkpoint_writes` via `split_part(thread_id,':',1)`. Ref §4.4.
-- [ ] 2.11 `rate_counters` cleanup job (pg_cron or scheduled Lambda, TTL 24h). Ref §4.4.
+- [x] 2.5 Migration: `action_permissions` (with `bulk_cancel_threshold`), `role_permissions`, `user_permissions`. Ref §4.4, §5.
+- [x] 2.6 Migration: `staff_members`, `shifts` (`EXCLUDE gist` no-overlap). Ref §4.4, §6.
+- [x] 2.7 Migration: `calendar_credentials`, `calendar_sync` (`idempotency_key`, `UNIQUE(tenant_id, idempotency_key)`). Ref §4.4, §7.6.
+- [x] 2.8 Migration: `user_sessions`, `rate_counters`, `tenants.llm_daily_budget_tokens`. Ref §4.4, §17.4, §19.
+- [x] 2.9 RLS policies: `ENABLE`+`FORCE` on every tenant table per §4.2 patterns (tenant+site+role for most; tenant-wide self-policy for `patients`/`consents`/`calendar_credentials`).
+- [x] 2.10 `AsyncPostgresSaver.setup()` + RLS on `checkpoints`/`checkpoint_writes` via `split_part(thread_id,':',1)`. Ref §4.4.
+- [x] 2.11 `rate_counters` cleanup job (pg_cron or scheduled Lambda, TTL 24h). Ref §4.4.
 
 ## Phase 3: Shared Kernel + Governance Modules
 
@@ -127,7 +127,7 @@ For **feature-branch-chain**: PR 1 targets the `kureha-mvp` tracker branch; PR 2
 ## Phase 10: Platform Inbound — FastAPI
 
 - [ ] 10.1 Routers: web forms (schedule/reschedule/cancel/reminder), auth endpoints (login/refresh/logout), Calendar OAuth2 callback.
-- [ ] 10.2 `composition_root.py`: wire all adapters into use cases across every module.
+- [ ] 10.2 `composition_root.py`: wire all adapters into use cases across every module. **Must** use `app.db.runtime_engine` (not `app.db.engine`) for every request-scoped repository/query adapter — `engine` connects as the `app_user` superuser and unconditionally bypasses RLS; only `runtime_engine` (`app_runtime` role) enforces it. See `app/db.py`'s module docstring and `tests/rls/test_app_runtime_role.py`.
 - [ ] 10.3 Central exception handler mapping domain/infra errors to the §21 envelope (`error_code`/`category`/`user_message`/`retryable`/`correlation_id`); unmapped exceptions fall back to generic `internal_error`/500.
 
 ## Phase 11: LangGraph Core
