@@ -1,0 +1,254 @@
+change: kureha-mvp
+current_phase: proposal
+status: complete
+artifact_store: file-based
+created: 2026-07-10
+source_intent: openspec/ (self-contained source of truth)
+
+phases:
+  proposal:
+    status: complete   # includes platform/infra hardening (auth, session, cache, rate limiting, idempotency, audit observability, AWS deployment) + conversational experience (Tony: self-disclosure, ephemeral memory, streaming+events, descriptive errors, chat guardrails, Markdown) + frontend tier / no-API-Gateway / no-Redis
+    artifact: openspec/changes/kureha-mvp/proposal.md
+    topic_key: sdd/kureha-mvp/proposal
+  spec:
+    status: complete   # CORREGIDO 2026-07-12 (sdd-tasks): el conteo "11 specs" era incorrecto — hay 14 archivos spec.md reales en openspec/changes/kureha-mvp/specs/ (verificado via glob), no existe openspec/specs/ base preexistente (proyecto greenfield), asi que las 14 son archivos nuevos de este change. 6 nuevas (user-authentication, session-management, platform-hardening, patient-self-service-portal, staff-registry, staff-scheduling) + 8 que extienden conceptualmente specs ya nombradas en el proposal original del curso pero cuyo archivo tambien se crea aca (access-control, action-based-rbac, consent-and-audit, clinical-safety, appointment-scheduling, embedded-patient-chat, internal-staff-copilot, google-calendar-sync). Incluye la experiencia conversacional (Tony) en las 4 specs afectadas + baseline de confirmacion conversacional pre-mutacion en los dos canales de chat.
+    note: >
+      Extension en sitio (post experiencia Tony): embedded-patient-chat e
+      internal-staff-copilot suman cada uno el requisito "Confirmation
+      Required Before Any Mutating Action" — un piso a nivel de canal: Tony/el
+      copilot SIEMPRE debe presentar la accion mutante en lenguaje simple y
+      obtener confirmacion explicita del usuario ANTES de ejecutar cualquier
+      create/update/delete originado por intent conversacional, incluyendo
+      mutaciones simples y no-bulk que HOY NO disparan HITL (p.ej. reservar
+      una cita con el profesional originalmente solicitado). Este piso es
+      deliberadamente MAS LIVIANO que el Human-in-the-Loop de
+      `clinical-safety`: se resuelve en la misma conversacion (mismo turno o
+      el siguiente) directamente con el usuario que pidio la accion, sin
+      pausar hacia un aprobador staff separado — se compone con el streaming
+      ya especificado (el prompt de confirmacion viaja dentro de la respuesta
+      streameada; la ejecucion espera el siguiente turno del usuario). Es
+      capa adicional sobre los triggers de HITL existentes (cancelacion
+      masiva, reasignacion de profesional, accion tenant-configurada), no un
+      reemplazo. Se agrego tambien una nota breve de cross-referencia en
+      `clinical-safety` distinguiendo explicitamente ambos mecanismos, para
+      que un lector de esa spec por si sola no confunda "pedir confirmacion
+      al usuario" con "pausar y enrutar a un aprobador staff".
+      3 specs nuevas (user-authentication, session-management,
+      platform-hardening) + 4 specs existentes extendidas EN SITIO (no
+      reescritas): access-control tiene el requisito "Session Claims
+      Originate From Authenticated Identity" (el request_ctx nace de
+      AuthPort); action-based-rbac tiene "Permission Cache Invalidation Is a
+      Security Control" como MUST duro (cache de permiso stale tras revoke =
+      privilege escalation, no performance); google-calendar-sync tiene
+      "Idempotent Sync Retries" (event id deterministico via appointment_id,
+      retry hace upsert no insert); consent-and-audit tiene "Hash-Chain
+      Integrity Monitoring and Alerting" (alarma de tamper + dead-man's
+      switch, ya no falla en silencio).
+      Judgment call registrado: session-management fija el bound de
+      propagacion de cambio de rol/permiso como NEXT-REQUEST (chequeo vivo de
+      `active` por request) para el escenario critico de staff desactivado —
+      no max-TTL — porque el proposal ya resuelve esa tension explicitamente
+      (access tokens cortos + chequeo vivo); cambios de rol/permiso que NO
+      tocan `active` quedan acotados por el TTL corto del access token como
+      bound secundario. user-authentication deja el vendor de IdP fuera (ya
+      decidido en proposal/design) y solo fija requisitos que cualquier
+      integracion de IdP debe cumplir, con el escenario explicito de
+      separacion Google-login vs Google-Calendar-OAuth.
+      Experiencia conversacional (Tony) incorporada en las 4 specs afectadas:
+      embedded-patient-chat suma identidad + auto-descripcion de capacidades
+      ("Assistant Identity and Capability Self-Disclosure"), memoria de corto
+      plazo efimera por thread_id retenido SOLO en memoria del cliente sobre
+      el PostgresSaver de ADR-7 ("Ephemeral Short-Term Memory Scoped to a
+      Client-Held Thread ID", con escenario explicito de que el refresh corta
+      la continuidad del chat pero NO cierra la sesion de auth), streaming con
+      visibilidad de estado/eventos y respuestas en Markdown.
+      internal-staff-copilot suma el mismo streaming+eventos y Markdown,
+      con el requisito adicional de que los eventos intermedios no filtren
+      nombres de tool ni resultados parciales fuera del RBAC del usuario
+      (ni siquiera transitoriamente durante el streaming).
+      clinical-safety suma "Guardrail Enforcement on Both Input and Output"
+      (la linea recomienda/orienta-nunca-diagnostica se hace cumplir tanto en
+      lo que el usuario envia -incluye resistencia a prompt injection/
+      jailbreak- como en lo que el agente emite, con chequeo de salida
+      independiente del de entrada) y "Tenant and Scope Leakage Prevention via
+      Chat" (defensa en profundidad a nivel de conversacion, no reemplaza RLS
+      de role-based-rls). platform-hardening suma "Descriptive, Non-Leaky
+      Error Taxonomy" (auth, validacion, calendar-sync degradado, HITL
+      pendiente, scope clinico rechazado, rate-limited -> mensajes especificos
+      sin stack traces/secretos/detalles de infra).
+      Judgment calls de esta ronda: el limite refresh-corta-chat-pero-no-auth
+      se declaro explicito con su propio escenario para no confundirse con
+      session-management (el thread_id de continuidad de chat es un concepto
+      distinto del token de sesion); el guardrail de salida en clinical-safety
+      se especifico como chequeo independiente del de entrada (no solo un
+      fallback) para que una injection que evada el filtro de entrada igual
+      quede bloqueada antes de llegar al usuario; la taxonomia de errores tomo
+      literalmente la lista de categorias del proposal como el minimo
+      exigido, dejando la lista de codigos concretos para sdd-design.
+    artifacts:
+      - openspec/changes/kureha-mvp/specs/access-control/spec.md               # updated: role-based-rls (+multi-tenant-isolation) + authenticated-identity linkage
+      - openspec/changes/kureha-mvp/specs/action-based-rbac/spec.md            # updated: +permission-cache-invalidation MUST (security, not perf)
+      - openspec/changes/kureha-mvp/specs/consent-and-audit/spec.md            # updated: +tenant_id field, +hash-chain integrity monitoring/alerting
+      - openspec/changes/kureha-mvp/specs/clinical-safety/spec.md              # updated: +Guardrail Enforcement on Both Input and Output (injection/jailbreak refused same as direct diagnosis ask; output check independiente del de entrada), +Tenant and Scope Leakage Prevention via Chat (defensa en profundidad sobre RLS); +nota de cross-referencia en "Human-in-the-Loop for High-Risk Actions" distinguiendola del baseline de confirmacion conversacional de los dos canales de chat
+      - openspec/changes/kureha-mvp/specs/appointment-scheduling/spec.md       # updated: channel-agnostic requirement
+      - openspec/changes/kureha-mvp/specs/patient-self-service-portal/spec.md  # new
+      - openspec/changes/kureha-mvp/specs/embedded-patient-chat/spec.md        # updated: +Assistant Identity and Capability Self-Disclosure (Tony), +Ephemeral Short-Term Memory Scoped to a Client-Held Thread ID (refresh corta el chat, no la sesion de auth), +Streaming Responses With Intermediate Status Visibility, +Markdown-Formatted Responses, +Confirmation Required Before Any Mutating Action (baseline de confirmacion conversacional pre-mutacion, distinto y adicional al HITL de clinical-safety)
+      - openspec/changes/kureha-mvp/specs/google-calendar-sync/spec.md         # updated: +idempotency-key requirement for retries
+      - openspec/changes/kureha-mvp/specs/staff-registry/spec.md               # new
+      - openspec/changes/kureha-mvp/specs/staff-scheduling/spec.md             # new
+      - openspec/changes/kureha-mvp/specs/internal-staff-copilot/spec.md       # updated: +Streaming Responses With Intermediate Status Visibility (eventos no filtran tools/resultados fuera del RBAC del usuario ni transitoriamente), +Markdown-Formatted Responses, +Confirmation Required Before Any Mutating Action (baseline de confirmacion conversacional pre-mutacion, distinto y adicional al HITL de clinical-safety)
+      - openspec/changes/kureha-mvp/specs/user-authentication/spec.md          # new: AuthPort, email+password, federated Google login separate from Calendar OAuth
+      - openspec/changes/kureha-mvp/specs/session-management/spec.md           # new: token lifecycle, live active-status enforcement (next-request bound)
+      - openspec/changes/kureha-mvp/specs/platform-hardening/spec.md           # updated: +Descriptive, Non-Leaky Error Taxonomy (auth, validacion, calendar-sync degradado, HITL pendiente, scope rechazado, rate-limited -> mensajes especificos sin stack traces/secretos) (ademas de rate limiting, cache tenant-scoped, AWS security ya existentes)
+    topic_key: sdd/kureha-mvp/spec
+  design:
+    status: complete   # re-derivacion conversacional (confirmacion pre-mutacion) integrada: §8.3 (edges con confirmation_gate), §8.4 (item 3: NO interrupt), §8.5 (prompt viaja en stream), §8.7 (sin ventana de guardrail), §8.9 (nuevo: mecanismo completo), §10.4 (nota cross-ref a §10.6), §10.6 (nuevo: secuencias A/B/C confirmar-affirm-decline)
+    rederivation_completed_2026_07_11:
+      - "§8.3 Edges: confirmation_gate insertado entre rbac_gate y route_by_risk; edge needed -> response_guard -> respond -> END; route_from_start para turno N+1 con pending"
+      - "§8.4 item 3: confirmation_gate NO usa interrupt(); explicita composicion con HITL (canal primero, staff despues)"
+      - "§8.5: composicion con confirmation_gate — prompt viaja como stream del turno N; mutacion NO ocurre en turno N; turno N+1 evalua afirmacion"
+      - "§8.7: composicion sin ventana de guardrail — prompt de confirmacion pasa por response_guard antes de alcanzar al usuario"
+      - "§8.9 (nueva): mecanismo completo con casos A/B/C (not_required, needed, affirmed/decline) e invariantes en tabla"
+      - "§10.4: nota que distingue esta secuencia del §10.6 y describe la composicion cuando ambos mecanismos aplican"
+      - "§10.6 (nueva): tres diagramas mermaid — turno N (propuesta), turno N+1 afirma, turno N+1 rechaza"
+    status_previous: complete   # estado antes de esta extension de spec; re-derivacion conversacional (Tony) integrada: §8.5-§8.8 (SSE, memoria efimera, guardrails chat, Markdown), §10.5 (secuencia refresh), §20 (frontend tier S3+CloudFront + sin API Gateway + diagrama), §21 (taxonomia de errores), ADR-16 reforzado (sin Redis), ADR-21/22/23 nuevos
+    updated_sections:
+      - "§8.5 Streaming con visibilidad de eventos (SSE) — nuevo, ADR-21"
+      - "§8.6 Memoria efimera via thread_id retenido en el cliente sobre PostgresSaver (ADR-7) — nuevo"
+      - "§8.7 Guardrails de chat entrada+salida (reusa clinical_scope_validator inbound + response_guard outbound, granularidad de chunk) — nuevo, ADR-22"
+      - "§8.8 Respuestas en Markdown (system prompt + react-markdown + rehype-sanitize) — nuevo"
+      - "§10.5 Secuencia SSE + memoria efimera (refresh corta chat, no la sesion de auth) — nuevo"
+      - "§20.1 diagrama AWS: nodo Internet reemplazado por frontend tier S3+CloudFront; SPA llama la API/SSE directo a WAF->ALB, CloudFront solo assets"
+      - "§20.2 why-not table: filas Frontend y API Gateway; fila Cache reforzada (sin Redis; memoria de Tony via PostgresSaver)"
+      - "§20.4 triggers de upgrade: +API Gateway (API publica partner-facing)"
+      - "§21 Taxonomia de errores no-filtrantes (envelope {error_code, category, user_message, retryable, correlation_id} + mapeo de las 6 categorias) — nuevo, ADR-23"
+      - "ADR-16 reforzado (sin cache compartido ni Redis; memoria efimera de Tony la cubre PostgresSaver)"
+      - "ADR-20 extendido (frontend tier + sin API Gateway)"
+    new_adrs:
+      - "ADR-21: streaming via SSE sobre HTTP/ALB (eventos status/token/done/error desde graph.astream stream_mode=[messages,updates,custom]); rechaza WebSocket/long-polling"
+      - "ADR-22: guardrails entrada+salida reusando el validador de scope (clasificador liviano, granularidad de chunk); rechaza NeMo Guardrails / segundo pase frontier"
+      - "ADR-23: taxonomia de errores como envelope estructurado no-filtrante mapeada a las 6 categorias"
+    note: >
+      Design derivado contra el proposal y las 11 specs (3 nuevas + 4
+      extendidas). Secciones actualizadas IN-SITU: §1 stack table (+IdP/
+      AuthPort, tokens de sesion, cache, rate limiter, Secrets Manager,
+      runtime Fargate/RDS); §4.2 (origen del contexto desde identidad
+      autenticada + GATE de estado activo vivo per-request como hook del
+      next-request bound); §4.3 (alerting de tamper por CloudWatch
+      metric+SNS + dead-man's switch treatMissingData=breaching); §4.4
+      (+columna calendar_sync.idempotency_key, +tablas user_sessions y
+      rate_counters); §5.6 (cache de RBAC: NO cross-request, addendum a
+      ADR-10); §7.4 (KEK atada a AWS Secrets Manager) + §7.6 (idempotencia
+      por event id determinista, 409=exito). Secciones nuevas: §17 (AuthPort
+      + ciclo de sesion), §18 (estrategia de cache), §19 (rate limiting),
+      §20 (topologia AWS con diagrama mermaid + why-not-X table + triggers
+      de upgrade). ADRs: ADR-14 (Supabase Auth standalone tras AuthPort, RDS
+      se queda en AWS — NO migra a Supabase; auth.uid() no aplica porque
+      Kureha usa RLS por GUC), ADR-15 (Kureha acuña access JWT corto ~10min
+      + refresh opaco en user_sessions; IdP solo autentica en login), ADR-16
+      (SIN cache compartido: RBAC vivo sin ventana stale por construccion,
+      disponibilidad per-instance TTL; Redis = upgrade documentado), ADR-17
+      (rate limiting 3 capas WAF+IdP+app sobre Postgres/per-instance, sin
+      ElastiCache), ADR-18 (idempotencia Calendar via client-supplied
+      deterministic event id derivado de appointment_id), ADR-19 (monitoreo
+      hash-chain CloudWatch), ADR-20 (baseline AWS Fargate+ALB+WAF+RDS-
+      Single-AZ+1NAT+Secrets Manager+IAM least-privilege, region/VPC unica).
+      Tension AWS-vs-Supabase resuelta explicitamente: solo auth flows salen
+      a Supabase, dato clinico jamas sale de RDS/VPC. El nucleo de
+      gobernanza (RLS, consent, audit, HITL, scope, ADR-1..ADR-13) queda
+      intacto.
+      Refinamientos de experiencia conversacional a re-derivar en el design:
+      §8 (grafo/estado) formaliza el streaming con visibilidad de eventos
+      sobre el streaming nativo del grafo y la memoria de corto plazo efimera
+      via PostgresSaver keyed por thread_id (ADR-7), con el thread_id generado
+      y retenido en memoria del cliente (nunca persistido en el frontend);
+      §8.2/§8.3 formalizan los guardrails de chat entrada+salida (resistencia
+      a injection/jailbreak, anti-fuga tenant/scope) como refuerzo del
+      response_guard de scope outbound, con RLS/RBAC como piso duro; §20
+      incorpora un frontend tier explicito (SPA estatica separada, direccion
+      S3+CloudFront) y las decisiones deliberadas SIN API Gateway (ALB+WAF ya
+      cubre TLS/routing/rate limiting; trigger de upgrade: API publica
+      partner-facing con API keys/quotas por cliente) y SIN Redis (refuerza
+      ADR-16; la memoria de Tony la cubre el PostgresSaver, no un cache nuevo),
+      con el diagrama a actualizar para modelar el frontend tier. La taxonomia
+      de errores no-filtrantes se ata a las specs afectadas. Ninguna pieza de
+      infraestructura nueva: todo se apoya en lo ya decidido.
+    artifact: openspec/changes/kureha-mvp/design.md
+    topic_key: sdd/kureha-mvp/design
+  tasks:
+    status: complete   # 18 fases, 17 unidades de trabajo/PR sugeridas (chained, feature-branch-chain vs stacked-to-main sin decidir); 400-line budget risk=High, decision needed before apply=Yes (ask-on-risk)
+    note: >
+      Desviacion explicita del budget de 530 palabras del skill sdd-tasks:
+      documentado en el propio tasks.md como nota al inicio (14 specs + diseno de
+      ~2600 lineas con 8 modulos hexagonales + grafo LangGraph de 15 nodos +
+      frontend SPA x2 superficies + infra AWS no caben en un checklist util de 530
+      palabras). Se prioriza completitud sobre el cap, manteniendo formato
+      checklist de 1-2 lineas por tarea (no prosa). Gap detectado en design.md:
+      no fija herramienta de IaC (Terraform/CDK/CloudFormation) para §20 — tarea
+      16.1 lo deja como decision pendiente antes de esa fase, no bloquea tasks.md.
+    artifact: openspec/changes/kureha-mvp/tasks.md
+    topic_key: sdd/kureha-mvp/tasks
+  apply:
+    status: pending
+  verify:
+    status: pending
+  archive:
+    status: pending
+
+next_recommended:
+  - sdd-apply  # tasks.status=complete (2026-07-12). ANTES de iniciar apply: Review Workload Forecast en tasks.md marca "Decision needed before apply: Yes" (ask-on-risk) — el orquestador debe preguntar al usuario stacked-to-main vs feature-branch-chain (o size:exception) antes de lanzar sdd-apply, per el Review Workload Guard de SDD.
+
+scope_note: >
+  Kureha es una PLATAFORMA OPERATIVA de la clinica. In-scope MVP: multi-tenant
+  (tenant_id sobre sede_id), portal de autoservicio del paciente (web + chat
+  embebido), Google Calendar sync (best-effort tras CalendarSyncPort, OAuth2
+  por paciente — no bloqueante), gestion operativa de personal (registro +
+  horarios/turnos, NO HR completo), RBAC por accion (configurable por clinica,
+  chequeos action-level), copilot interno de staff (toolset segun permisos de
+  accion), chat que recomienda y orienta administrativamente. Sobre ese
+  dominio operativo se agregan siete concerns de plataforma/infra que la
+  gobernanza de dato clinico exige, todos detras del patron "puerto" ya
+  establecido: (1) AUTENTICACION DE USUARIO / login — nuevo AuthPort,
+  email+password Y "Sign in with Google" (federado, DISTINTO del OAuth de
+  Calendar); recomendacion validada: IdP externo gestionado (Supabase Auth
+  mejor fit por Postgres+RLS; Auth0/Clerk viables), authn en el IdP, authz
+  (tenant_id/site_id/role -> GUCs) retenido en Kureha; (2) GESTION DE SESION —
+  expiry/refresh/logout/revocacion + cambio de rol a mitad de sesion (token de
+  vida corta + chequeo vivo de active por request); (3) CAPA DE CACHE —
+  disponibilidad, resolucion RBAC y tools del copilot, tenant-scoped,
+  invalidacion correcta ante cambio de permiso (decision SEPARADA de ADR-7,
+  que solo rechazo Redis para el checkpointer); (4) RATE LIMITING — endpoints
+  de auth y de chat del paciente; (5) IDEMPOTENCY KEYS en el sync de Calendar
+  (reintento no duplica evento); (6) OBSERVABILIDAD/ALERTING del hash-chain de
+  auditoria (alarma de tamper + dead-man's switch); (7) DESPLIEGUE AWS como
+  constraint de MVP ("seguro pero sin overkill": red privada, secret manager
+  para la KEK de ADR-12, TLS, IAM least-privilege) — requisito y constraints,
+  NO topologia (eso es design). Specs nuevas: user-authentication,
+  session-management, platform-hardening. Specs extendidas: access-control,
+  action-based-rbac, google-calendar-sync, consent-and-audit, y el design
+  (stack table, 4.2, 4.3, 5, 7 + ADR-14..ADR-20). El nucleo de gobernanza
+  (RLS, consent, audit append-only, HITL, scope clinico) se preserva intacto
+  a lo largo de todo el dominio. El chat de paciente y el copilot de staff se
+  entregan a traves de un unico asistente conversacional, TONY, con requisitos
+  de experiencia in-scope de MVP: auto-descripcion de capacidades (recomienda/
+  orienta administrativamente, nunca diagnostica); memoria de corto plazo
+  efimera por sesion (thread_id generado y retenido SOLO en memoria del cliente
+  sobre el PostgresSaver de ADR-7, se limpia al refrescar — el frontend nunca
+  persiste el thread_id; el checkpoint previo queda en Postgres solo para
+  auditoria; sin Redis ni store nuevo); respuestas en streaming con visibilidad
+  de estado/eventos; manejo de errores descriptivo con taxonomia no-filtrante
+  (validacion, auth, calendar-sync degradado, HITL pendiente, scope rechazado,
+  rate-limited); guardrails de chat de entrada+salida (resistencia a
+  injection/jailbreak, anti-fuga tenant/scope, proporcionado a MVP); y salida
+  en Markdown. La topologia AWS incorpora ademas un FRONTEND TIER explicito
+  (SPA estatica separada del backend, direccion S3+CloudFront, sin nuevo
+  compute) y dos decisiones deliberadas: SIN API Gateway en MVP (ALB+WAF ya
+  cubre TLS/routing/rate limiting; trigger de upgrade: API publica
+  partner-facing con API keys/quotas por cliente) y SIN Redis (refuerza ADR-16;
+  la memoria de Tony la cubre el PostgresSaver). Specs afectadas por esta
+  experiencia conversacional ya completas: embedded-patient-chat,
+  internal-staff-copilot, clinical-safety, platform-hardening (taxonomia de
+  errores). El frontend tier / sin API Gateway / sin Redis quedan como
+  concern de design (§8, §8.2/8.3, §20, ADR-16), pendiente de re-derivacion.
+  Fuera de MVP (V2, tras puerto con stub): Telegram, WaitlistAgent, export
+  FHIR/RENHICE, panel de gobernanza, HR completo (nomina/contratos/desempeño).

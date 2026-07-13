@@ -1,0 +1,92 @@
+schema: spec-driven
+
+project: Kureha
+description: >
+  Plataforma operativa multi-tenant para clinicas y consultorios en Peru:
+  agenda, autoservicio del paciente, sincronizacion con Google Calendar,
+  gestion operativa de personal y copilot interno, disenada desde el inicio
+  para ser segura, auditable y con gobernanza sobre datos de salud (dato
+  sensible bajo Ley 29733).
+
+context: |
+  Tech stack: Scaffolding inicial creado, sin logica de negocio todavia.
+  backend/: Python 3.13 via uv, pyproject.toml con dependencies=[] (aun sin
+  LangChain/LangGraph/FastAPI instalados). frontend/: Next.js 16.2 + React
+  19.2 + TypeScript + Tailwind 4 via create-next-app (App Router, sin paginas
+  propias todavia). Stack previsto segun el curso base sigue siendo: Python
+  3.13+, LangChain, LangGraph (patron supervisor + especialistas + HITL),
+  PostgreSQL con Row-Level Security, FastAPI + JWT. Confirmar/ajustar en fase
+  de design, no asumir sin validar.
+
+  Architecture: A definir en sdd-design. Candidatos a evaluar: arquitectura
+  hexagonal/screaming architecture para aislar el dominio clinico (agenda,
+  consentimiento, auditoria) de la infraestructura (Postgres, WhatsApp API,
+  LangGraph runtime).
+
+  Testing: Sin test runner detectado aun (backend sin pytest instalado,
+  frontend sin vitest/jest/playwright configurado mas alla del eslint por
+  defecto de create-next-app). Se recomienda pytest + pytest-asyncio en
+  backend y vitest/playwright en frontend una vez arranque la
+  implementacion. Strict TDD queda en false hasta que exista runner real.
+
+  Style: Documentacion SDD (proposal/spec/design/tasks) en espanol, igual que
+  el resto del curso y la idea original. Codigo, identificadores, comentarios
+  y mensajes de error en ingles (convencion global del usuario), salvo textos
+  de cara al usuario final que el negocio pida en espanol.
+
+  Regulatorio (no negociable):
+  - Ley 29733: dato de salud es dato sensible, requiere consentimiento
+    informado versionado.
+  - RENHICE / HL7 FHIR PE-CORE: interoperabilidad progresiva obligatoria de
+    historia clinica electronica (Decreto Supremo 020-2025-SA).
+  - Reglamento de la Ley 31814: trazabilidad de decisiones automatizadas.
+  - SUSALUD: puede sancionar incumplimiento — toda decision del agente debe
+    quedar auditada.
+
+rules:
+  proposal:
+    - Mantenerse alineado al contexto regulatorio y de negocio ya establecido
+      en `openspec/` (Ley 29733, RENHICE/HL7 FHIR PE-CORE, Reglamento Ley 31814,
+      SUSALUD) — no reinventar ese marco en cada propuesta.
+    - Incluir plan de rollback para cualquier cambio que toque datos de
+      pacientes o reglas de disponibilidad.
+  specs:
+    - Usar escenarios Given/When/Then.
+    - Usar palabras clave RFC 2119 (MUST, SHALL, SHOULD, MAY).
+    - Cubrir explicitamente como requisitos de primera clase (no como nota aparte).
+      RLS por rol, consentimiento versionado, log de auditoria
+      append-only, HITL obligatorio, y el validador de scope clinico (el
+      agente nunca diagnostica).
+  design:
+    - Incluir diagramas de secuencia para los flujos de agendar, reprogramar,
+      cancelar y escalar a humano.
+    - Documentar cada decision de arquitectura con su razon (rationale),
+      especialmente RLS, esquema de auditoria (append-only / hash-chain) y
+      modelo de consentimiento versionado.
+    - Definir el grafo LangGraph (nodos, edges, puntos de interrupt()) de
+      forma explicita, no solo en prosa.
+  tasks:
+    - Agrupar por fase, numeracion jerarquica.
+    - Cada tarea completable en una sola sesion.
+    - RLS, consentimiento y logs de auditoria van en el MVP, no se dejan
+      para "V2" — son el diferencial del proyecto.
+  apply:
+    - Seguir los patrones de codigo que se establezcan en design.md.
+    tdd: false   # activar cuando exista test runner real (pytest)
+    test_command: ""
+  verify:
+    test_command: ""
+    build_command: ""
+    coverage_threshold: 0
+  archive:
+    - Advertir antes de fusionar deltas destructivos sobre specs/ ya
+      existentes.
+
+testing:
+  runner: none
+  strict_tdd: false
+  reason: >
+    Scaffolding inicial de backend (uv, dependencies=[]) y frontend
+    (create-next-app) sin test runner configurado todavia. Se recomienda
+    pytest + pytest-asyncio en backend y vitest/playwright en frontend al
+    iniciar sdd-apply; strict_tdd debe reevaluarse en ese momento.
