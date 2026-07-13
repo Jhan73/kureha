@@ -4,4 +4,73 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "alembic>=1.18.5",
+    "asyncpg>=0.31.0",
+    "boto3>=1.43.46",
+    "cachetools>=7.1.4",
+    "fastapi>=0.139.0",
+    "google-api-python-client>=2.198.0",
+    "google-auth>=2.55.2",
+    "langchain>=1.3.13",
+    "langgraph>=1.2.9",
+    "langgraph-checkpoint-postgres>=3.1.0",
+    "psycopg[binary,pool]>=3.3.4",
+    "pydantic-settings>=2.14.2",
+    "pyjwt>=2.13.0",
+    "sqlalchemy[asyncio]>=2.0.51",
+    "uvicorn>=0.51.0",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "import-linter>=2.13",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "watchfiles>=1.2.0",
+]
+
+[tool.importlinter]
+root_packages = ["app"]
+
+# Rule 1 (design.md §2.4): platform -> modules -> shared_kernel, one-way.
+# "modules" here means the whole app.modules subtree (business modules +
+# governance, see Rule 2 below for the ordering between them).
+[[tool.importlinter.contracts]]
+name = "Platform depends on Modules and Shared Kernel, never the reverse"
+type = "layers"
+layers = [
+    "platform",
+    "modules",
+    "shared_kernel",
+]
+containers = ["app"]
+
+# Rule 1 continued: business modules -> governance -> shared_kernel, one-way.
+# Governance (consent/audit/scope/rbac) never imports a business module.
+[[tool.importlinter.contracts]]
+name = "Business modules depend on Governance, Governance never depends on Business modules"
+type = "layers"
+layers = [
+    "tenancy | identity | scheduling | staff | calendar",
+    "governance",
+]
+containers = ["app.modules"]
+
+# Rule 2 (design.md §2.4): no cross-module business imports — scheduling,
+# staff, calendar, tenancy and identity never import each other directly.
+[[tool.importlinter.contracts]]
+name = "Business modules do not import each other directly"
+type = "independence"
+modules = [
+    "app.modules.tenancy",
+    "app.modules.identity",
+    "app.modules.scheduling",
+    "app.modules.staff",
+    "app.modules.calendar",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
