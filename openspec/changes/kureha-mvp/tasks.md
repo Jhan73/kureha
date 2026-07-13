@@ -63,10 +63,10 @@ For **feature-branch-chain**: PR 1 targets the `kureha-mvp` tracker branch; PR 2
 
 ## Phase 2: Database Schema + RLS
 
-- [ ] 2.1 Migration: `tenants`, `sites`, `users`, `professionals`, `patients` (tenant-wide identity, `UNIQUE(tenant_id, document_number)`). Ref §4.1.
-- [ ] 2.2 Migration: `availability`, `appointments` (`EXCLUDE USING gist` anti double-booking). Ref §4.1.
-- [ ] 2.3 Migration: `consent_policies`, `consents` (tenant-scoped, one current per tenant). Ref §4.1, §11.
-- [ ] 2.4 Migration: `audit_logs` + append-only triggers + hash-chain trigger with `pg_advisory_xact_lock`. Ref §4.3.
+- [x] 2.1 Migration: `tenants`, `sites`, `users`, `professionals`, `patients` (tenant-wide identity, `UNIQUE(tenant_id, document_number)`). Ref §4.1.
+- [x] 2.2 Migration: `availability`, `appointments` (`EXCLUDE USING gist` anti double-booking). Ref §4.1.
+- [x] 2.3 Migration: `consent_policies`, `consents` (tenant-scoped, one current per tenant). Ref §4.1, §11.
+- [x] 2.4 Migration: `audit_logs` + append-only triggers + hash-chain trigger with `pg_advisory_xact_lock`. Ref §4.3.
 - [ ] 2.5 Migration: `action_permissions` (with `bulk_cancel_threshold`), `role_permissions`, `user_permissions`. Ref §4.4, §5.
 - [ ] 2.6 Migration: `staff_members`, `shifts` (`EXCLUDE gist` no-overlap). Ref §4.4, §6.
 - [ ] 2.7 Migration: `calendar_credentials`, `calendar_sync` (`idempotency_key`, `UNIQUE(tenant_id, idempotency_key)`). Ref §4.4, §7.6.
@@ -171,7 +171,7 @@ For **feature-branch-chain**: PR 1 targets the `kureha-mvp` tracker branch; PR 2
 
 ## Phase 16: AWS Deployment + Local Dev Parity
 
-- [ ] 16.1 Pick an IaC tool (Terraform/CDK/CloudFormation — **not fixed by design.md**, decide before this task) and author VPC/subnets/SG/ALB/WAF/ECS Fargate/RDS Single-AZ/NAT/Secrets Manager/IAM per §20.
+- [ ] 16.1 Pick an IaC tool (Terraform/CDK/CloudFormation — **not fixed by design.md**, decide before this task) and author VPC/subnets/SG/ALB/WAF/ECS Fargate/RDS Single-AZ/NAT/Secrets Manager/IAM per §20. Include a bootstrap step that runs `CREATE EXTENSION IF NOT EXISTS pgcrypto` and `CREATE EXTENSION IF NOT EXISTS btree_gist` as the RDS master user before the first `alembic upgrade head` — both are on RDS Postgres's trusted/allow-listed extension set (no special AWS enablement needed), but nothing outside `infra/postgres/init/` (docker-compose-only) creates them today (PR 2 review finding).
 - [ ] 16.2 EventBridge Scheduler + ECS scheduled tasks: hash-chain verify job (tamper alarm + heartbeat), calendar retry job. Ref §4.3, §7.5.
 - [ ] 16.3 CloudWatch alarms + SNS topic (`AuditChainTamper`, `AuditChainVerifyHeartbeat` with `treatMissingData=breaching`). Ref §4.3.
 - [ ] 16.4 S3+CloudFront frontend tier static-export deploy pipeline. Ref §20.1.

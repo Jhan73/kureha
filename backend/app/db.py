@@ -8,13 +8,16 @@ FastAPI app (composition root, added in a later phase) import it so there is
 exactly one place that knows the connection string.
 """
 
+from typing import Any
+
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from app.config import settings
 
 
-def create_engine() -> AsyncEngine:
-    return create_async_engine(settings.database_url, pool_pre_ping=True)
+def create_engine(**kwargs: Any) -> AsyncEngine:
+    kwargs.setdefault("pool_pre_ping", True)
+    return create_async_engine(settings.database_url, **kwargs)
 
 
 engine: AsyncEngine = create_engine()
