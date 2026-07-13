@@ -8,3 +8,7 @@
 -- btree_gist backs the EXCLUDE USING gist constraints used for anti
 -- double-booking (appointments) and anti-overlap (shifts).
 CREATE EXTENSION IF NOT EXISTS btree_gist;
+
+-- pgcrypto backs digest() used by the audit_logs hash-chain trigger
+-- (design.md §4.3, backend/migrations/versions/*_audit_logs*).
+CREATE EXTENSION IF NOT EXISTS pgcrypto;

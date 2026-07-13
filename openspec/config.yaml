@@ -23,11 +23,13 @@ context: |
   consentimiento, auditoria) de la infraestructura (Postgres, WhatsApp API,
   LangGraph runtime).
 
-  Testing: Sin test runner detectado aun (backend sin pytest instalado,
-  frontend sin vitest/jest/playwright configurado mas alla del eslint por
-  defecto de create-next-app). Se recomienda pytest + pytest-asyncio en
-  backend y vitest/playwright en frontend una vez arranque la
-  implementacion. Strict TDD queda en false hasta que exista runner real.
+  Testing: Runners reales instalados y verificados en ambos lados. Backend:
+  pytest + pytest-asyncio + import-linter (mergeado a main via PR 1 de
+  kureha-mvp). Frontend: Vitest + @testing-library/react + jsdom, via
+  @vitejs/plugin-react (guia oficial de Next.js 16 para App Router), con
+  `resolve.tsconfigPaths: true` nativo de Vite en vez del plugin
+  `vite-tsconfig-paths`. Smoke test de frontend corrido y verificado en
+  verde. Strict TDD activo desde este punto.
 
   Style: Documentacion SDD (proposal/spec/design/tasks) en espanol, igual que
   el resto del curso y la idea original. Codigo, identificadores, comentarios
@@ -72,21 +74,37 @@ rules:
       para "V2" — son el diferencial del proyecto.
   apply:
     - Seguir los patrones de codigo que se establezcan en design.md.
-    tdd: false   # activar cuando exista test runner real (pytest)
-    test_command: ""
+    - Strict TDD activo: test que falla primero, despues implementacion.
+    tdd: true
+    test_command: "cd backend && uv run pytest && cd ../frontend && npm run test"
   verify:
-    test_command: ""
-    build_command: ""
+    test_command: "cd backend && uv run pytest && uv run lint-imports && cd ../frontend && npm run test"
+    build_command: "cd frontend && npm run build"
     coverage_threshold: 0
   archive:
     - Advertir antes de fusionar deltas destructivos sobre specs/ ya
       existentes.
 
 testing:
-  runner: none
-  strict_tdd: false
+  runner: pytest (backend) + vitest (frontend)
+  backend:
+    runner: pytest + pytest-asyncio
+    command: "uv run pytest"
+    lint_command: "uv run lint-imports"
+    layers: unit + integration (design.md §14 tiene la guia completa por capa: RLS, RBAC, consent, scope, HITL, confirmation gate, calendar sync, cifrado, staff/shifts, auditoria, rate limiting, thread_id ownership, Tony conversacional, sugerencias)
+  frontend:
+    runner: Vitest + @testing-library/react + jsdom
+    command: "npm run test"
+    watch_command: "npm run test:watch"
+    config: frontend/vitest.config.ts
+    note: >
+      Setup oficial de Next.js 16 para App Router (@vitejs/plugin-react +
+      jsdom); usa resolve.tsconfigPaths nativo de Vite en vez del plugin
+      vite-tsconfig-paths (deprecado por el propio Vite). No incluye
+      Playwright/E2E todavia — solo unit/component tests.
+  strict_tdd: true
   reason: >
-    Scaffolding inicial de backend (uv, dependencies=[]) y frontend
-    (create-next-app) sin test runner configurado todavia. Se recomienda
-    pytest + pytest-asyncio en backend y vitest/playwright en frontend al
-    iniciar sdd-apply; strict_tdd debe reevaluarse en ese momento.
+    Ambos runners existen, estan instalados y se verificaron corriendo en
+    verde (backend: pytest via PR 1 de kureha-mvp; frontend: smoke test de
+    Vitest sobre app/page.tsx). Activado 2026-07-13 a pedido explicito del
+    usuario tras confirmar que faltaba el runner de frontend.
