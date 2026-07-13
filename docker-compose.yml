@@ -1,0 +1,57 @@
+services:
+
+  localstack:
+    image: localstack/localstack:latest
+    ports:
+      - "4566:4566"
+    environment:
+      SERVICES: secretsmanager,s3,sns,logs,cloudwatch
+      DEFAULT_REGION: us-east-1
+      LOCALSTACK_AUTH_TOKEN: "" # Community edition; keep empty in CI too
+    volumes:
+      - ./infra/localstack/init:/etc/localstack/init/ready.d
+      - localstack_data:/var/lib/localstack
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 5s
+      retries: 10
+
+  postgres:
+    image: postgres:16
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: kureha_dev
+      POSTGRES_USER: app_user
+      POSTGRES_PASSWORD: dev_only_password # not a real secret
+    volumes:
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app_user -d kureha_dev"]
+      interval: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8000:8000"
+    depends_on:
+      localstack:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env.local
+    volumes:
+      - ./backend:/app
+      # Anonymous volume: keeps the container's own (Linux) .venv built at
+      # image time instead of letting the bind mount above shadow it with
+      # the host's .venv (which may hold Windows/macOS binaries).
+      - /app/.venv
+
+volumes:
+  localstack_data:
+  postgres_data:

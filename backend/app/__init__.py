@@ -1,0 +1,1 @@
+"""Kureha backend application package."""

@@ -189,14 +189,35 @@ phases:
     artifact: openspec/changes/kureha-mvp/tasks.md
     topic_key: sdd/kureha-mvp/tasks
   apply:
-    status: pending
+    status: in_progress
+    delivery_strategy: ask-on-risk
+    chain_strategy: feature-branch-chain
+    work_units_done:
+      - "PR 1/17 — Tooling: deps, docker-compose, Alembic, import-linter (Phase 1, tasks 1.1-1.7) — branch pr-1-tooling off tracker kureha-mvp"
+    work_units_remaining: "PR 2/17 through PR 17/17, see 'Suggested Work Units' table in tasks.md"
+    note: >
+      PR 1 completed Phase 1 only (tasks 1.1-1.7): backend deps via uv,
+      import-linter contracts (+ minimal empty-package skeleton so the
+      contracts are actually checkable — no domain logic), frontend
+      react-markdown/rehype-sanitize + output:'export', infra/localstack
+      init scripts + infra/postgres/init (btree_gist extension bootstrap),
+      docker-compose.yml + .env.local.example, backend Dockerfile +
+      Dockerfile.dev, Alembic (async template) wired to app/config.py +
+      app/db.py. Docker daemon was not running in the apply environment so
+      image builds were not exercised end-to-end (deferred to PR 16, task
+      16.5, as tasks.md already scopes it). Next batch (PR 2) targets branch
+      pr-1-tooling (per feature-branch-chain) and starts Phase 2 (2.1-2.4):
+      core schema + RLS migrations (tenants/sites/users/patients/
+      availability/appointments/consent/audit).
+    artifact: openspec/changes/kureha-mvp/tasks.md
+    topic_key: sdd/kureha-mvp/apply-progress
   verify:
     status: pending
   archive:
     status: pending
 
 next_recommended:
-  - sdd-apply  # tasks.status=complete (2026-07-12). ANTES de iniciar apply: Review Workload Forecast en tasks.md marca "Decision needed before apply: Yes" (ask-on-risk) — el orquestador debe preguntar al usuario stacked-to-main vs feature-branch-chain (o size:exception) antes de lanzar sdd-apply, per el Review Workload Guard de SDD.
+  - sdd-apply  # PR 2/17: Phase 2.1-2.4 (core schema + RLS), branch off pr-1-tooling per feature-branch-chain. tasks.md 1.1-1.7 are [x]; 2.1 onward still [ ].
 
 scope_note: >
   Kureha es una PLATAFORMA OPERATIVA de la clinica. In-scope MVP: multi-tenant
