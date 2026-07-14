@@ -10,9 +10,9 @@ Two independent defenses are tested:
 """
 
 import sqlalchemy as sa
-from sqlalchemy.exc import DBAPIError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 
-from tests.schema.helpers import expect_violation, make_tenant
+from tests.schema.helpers import expect_violation, make_site, make_tenant
 
 
 async def _insert_audit_row(conn, tenant_id, *, action="appointment.create", object_id=None):
@@ -145,3 +145,35 @@ async def test_audit_logs_actor_type_check_rejects_unknown_value(db_conn, tenant
             ),
             {"tenant_id": tenant_id},
         )
+
+
+async def test_audit_logs_site_id_rejects_a_site_from_a_different_tenant(db_conn, tenant_id) -> None:
+    """PR 4 review fix: `site_id` is now a composite FK `(tenant_id,
+    site_id) REFERENCES sites (tenant_id, id)`, matching every sibling
+    table -- a site belonging to another tenant must be rejected, not just
+    "some site that exists somewhere"."""
+    other_tenant_id = await make_tenant(db_conn)
+    other_tenants_site_id = await make_site(db_conn, other_tenant_id)
+
+    async with expect_violation(db_conn, IntegrityError):
+        await db_conn.execute(
+            sa.text(
+                "INSERT INTO audit_logs (tenant_id, site_id, actor_type, action, object_type) "
+                "VALUES (:tenant_id, :site_id, 'system', 'appointment.create', 'appointment')"
+            ),
+            {"tenant_id": tenant_id, "site_id": other_tenants_site_id},
+        )
+
+
+async def test_audit_logs_site_id_accepts_a_site_from_the_same_tenant(db_conn, tenant_id) -> None:
+    site_id = await make_site(db_conn, tenant_id)
+
+    result = await db_conn.execute(
+        sa.text(
+            "INSERT INTO audit_logs (tenant_id, site_id, actor_type, action, object_type) "
+            "VALUES (:tenant_id, :site_id, 'system', 'appointment.create', 'appointment') "
+            "RETURNING id"
+        ),
+        {"tenant_id": tenant_id, "site_id": site_id},
+    )
+    assert result.scalar_one() is not None

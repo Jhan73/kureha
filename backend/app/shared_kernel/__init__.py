@@ -1,1 +1,4 @@
-"""Shared kernel: TenantContext, DomainError, ClockPort/IdGeneratorPort. Implemented in PR 4 (see openspec/changes/kureha-mvp/tasks.md, Phase 3)."""
+"""Shared kernel: `TenantContext`, `DomainError` hierarchy,
+`ClockPort`/`SystemClock`, `IdGeneratorPort`/`UuidGenerator` (design.md
+§2.5). Pure value objects and trivial ports only -- no IO, no business
+logic, no dependency on any module."""

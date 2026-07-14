@@ -1,1 +1,3 @@
-"""Consent module: Consent/ConsentPolicy, CheckConsent use case. Implemented in PR 4 (Phase 3)."""
+"""Consent module: `Consent`/`ConsentPolicyVersion` domain entities,
+`ConsentPolicy` precedence rule, `CheckConsent` use case,
+`PostgresConsentRegistry` adapter (design.md §11)."""
