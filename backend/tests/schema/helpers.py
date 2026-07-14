@@ -106,3 +106,29 @@ async def make_user(
         },
     )
     return str(result.scalar_one())
+
+
+async def make_user_credentials(
+    conn: AsyncConnection,
+    tenant_id: str,
+    user_id: str,
+    *,
+    email: str,
+    auth_subject: str | None = None,
+    email_verified_at: str | None = None,
+) -> str:
+    result = await conn.execute(
+        sa.text(
+            "INSERT INTO user_credentials (tenant_id, user_id, email, auth_subject, email_verified_at) "
+            "VALUES (:tenant_id, :user_id, :email, :auth_subject, :email_verified_at) "
+            "RETURNING id"
+        ),
+        {
+            "tenant_id": tenant_id,
+            "user_id": user_id,
+            "email": email,
+            "auth_subject": auth_subject,
+            "email_verified_at": email_verified_at,
+        },
+    )
+    return str(result.scalar_one())

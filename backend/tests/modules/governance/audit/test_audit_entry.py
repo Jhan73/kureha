@@ -22,6 +22,14 @@ _EXPECTED_ACTIONS = {
     "hitl.reject",
     "scope.escalate",
     "consent.block",
+    # Added by Phase 4 (identity module, tasks.md task 4.3/4.6): design.md
+    # §4.3's catalog paragraph predates the identity module and has no entry
+    # for "an authenticated identity resolved to no `users` row" -- the
+    # `user-authentication` spec's "Authenticated Identity Maps to
+    # Authorization Context" requirement explicitly mandates this be audited
+    # ("the attempt MUST be audited"). Flagged here, not silently added --
+    # see app/modules/governance/audit/domain/audit_entry.py's docstring.
+    "auth.unmapped_identity",
 }
 
 
