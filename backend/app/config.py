@@ -39,6 +39,26 @@ class Settings(BaseSettings):
     aws_endpoint_url: str | None = None
     aws_default_region: str = "us-east-1"
 
+    # Identity module (design.md §17, tasks.md Phase 4). Adapters take these
+    # via constructor injection (composition root, task 10.2) rather than
+    # reading `settings` directly -- see e.g. `SupabaseAuthAdapter`'s
+    # constructor -- so this section is scaffolding for that future wiring,
+    # not yet consumed anywhere in this PR.
+    #
+    # Supabase Auth (GoTrue) project, standalone (ADR-14) -- Kureha's own DB
+    # never migrates to Supabase, only auth flows call this API.
+    supabase_url: str | None = None
+    supabase_anon_key: str | None = None
+
+    # Kureha's own access-JWT signing secret (ADR-15) -- the dev default is
+    # intentionally obviously-fake ("dev_only_..."), matching the convention
+    # already used for `database_url`'s dev password; production MUST
+    # override via a real Secrets Manager-backed value (design.md §22.6).
+    identity_access_token_secret: str = "dev_only_access_token_secret_change_me"
+    identity_access_token_ttl_minutes: int = 10
+    identity_refresh_token_ttl_days: int = 30
+    identity_refresh_grace_period_seconds: int = 30
+
 
 @lru_cache
 def get_settings() -> Settings:

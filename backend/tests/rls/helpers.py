@@ -287,3 +287,17 @@ async def seed_user_session(
         {"t": tenant_id, "u": user_id, "hash": refresh_token_hash},
     )
     return str(result.scalar_one())
+
+
+async def seed_user_credentials(
+    conn: AsyncConnection, tenant_id: str, user_id: str, *, email: str, auth_subject: str | None = None
+) -> str:
+    await set_app_context(conn, tenant_id=tenant_id, role="admin")
+    result = await conn.execute(
+        text(
+            "INSERT INTO user_credentials (tenant_id, user_id, email, auth_subject) "
+            "VALUES (:t, :u, :email, :sub) RETURNING id"
+        ),
+        {"t": tenant_id, "u": user_id, "email": email, "sub": auth_subject},
+    )
+    return str(result.scalar_one())

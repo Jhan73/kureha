@@ -85,12 +85,12 @@ For **feature-branch-chain**: PR 1 targets the `kureha-mvp` tracker branch; PR 2
 
 ## Phase 4: Identity & Session Management
 
-- [ ] 4.1 `modules/identity`: `AuthPort` protocol (`verify_password`, `verify_federated`, `start_password_reset`), `AuthnResult` VO. Ref §17.1.
-- [ ] 4.2 `SupabaseAuthAdapter` implementing `AuthPort` (email/password, Google federated, password reset). Ref §17.2.
-- [ ] 4.3 `use_cases/login.py`: resolve `users` row from `AuthnResult.subject`, mint access JWT (~10min) + opaque refresh into `user_sessions`. Ref §17.3/17.4.
-- [ ] 4.4 `use_cases/refresh_token.py`: validate+rotate refresh, 30s grace period, reuse-detection revokes chain, re-check live active status, re-resolve role. Ref §17.4.
-- [ ] 4.5 `use_cases/logout.py` + `revoke_session.py` (admin-revoke all sessions for a `user_id`).
-- [ ] 4.6 Email-verification/account-linking flow when Google email matches an existing password account (no silent auto-merge). Ref specs/user-authentication.
+- [x] 4.1 `modules/identity`: `AuthPort` protocol (`verify_password`, `verify_federated`, `start_password_reset`), `AuthnResult` VO. Ref §17.1.
+- [x] 4.2 `SupabaseAuthAdapter` implementing `AuthPort` (email/password, Google federated, password reset). Ref §17.2.
+- [x] 4.3 `use_cases/login.py`: resolve `users` row from `AuthnResult.subject`, mint access JWT (~10min) + opaque refresh into `user_sessions`. Ref §17.3/17.4.
+- [x] 4.4 `use_cases/refresh_token.py`: validate+rotate refresh, 30s grace period, reuse-detection revokes chain, re-check live active status, re-resolve role. Ref §17.4.
+- [x] 4.5 `use_cases/logout.py` + `revoke_session.py` (admin-revoke all sessions for a `user_id`).
+- [x] 4.6 Email-verification/account-linking flow when Google email matches an existing password account (no silent auto-merge). Ref specs/user-authentication.
 
 ## Phase 5: Access Control Middleware & Rate Limiting
 

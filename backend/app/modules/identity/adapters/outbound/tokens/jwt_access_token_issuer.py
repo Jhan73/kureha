@@ -1,0 +1,39 @@
+"""`JwtAccessTokenIssuer`: production `AccessTokenIssuerPort` impl (design.md
+§17.4/ADR-15). HS256-signed, stateless -- never persisted. Claims:
+`sub` (actor_id, JWT-standard claim name for "subject" -- reused here for
+`users.id`, distinct from `AuthnResult.subject`, which is the IdP's own
+subject and never appears in this token), `tenant_id`, `site_id`, `role`,
+`iat`, `exp`."""
+
+from datetime import timedelta
+
+import jwt
+
+from app.shared_kernel.clock import ClockPort
+from app.shared_kernel.tenant_context import TenantContext
+
+_ALGORITHM = "HS256"
+
+
+class JwtAccessTokenIssuer:
+    def __init__(self, *, secret: str, clock: ClockPort, algorithm: str = _ALGORITHM) -> None:
+        self._secret = secret
+        self._clock = clock
+        self._algorithm = algorithm
+
+    async def issue(self, ctx: TenantContext, *, ttl: timedelta) -> str:
+        now = self._clock.now()
+        claims = {
+            "tenant_id": ctx.tenant_id,
+            "site_id": ctx.site_id,
+            "role": ctx.role,
+            "iat": now,
+            "exp": now + ttl,
+        }
+        # PyJWT rejects a non-string "sub" claim outright (raises
+        # InvalidSubjectError on decode) -- omit it entirely for an
+        # anonymous/system TenantContext (actor_id=None) rather than
+        # encoding a `None` that would fail on the very next decode.
+        if ctx.actor_id is not None:
+            claims["sub"] = ctx.actor_id
+        return jwt.encode(claims, self._secret, algorithm=self._algorithm)
