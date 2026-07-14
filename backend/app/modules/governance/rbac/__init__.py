@@ -1,1 +1,3 @@
-"""RBAC module: Permission/PermissionPolicy, AuthorizeAction use case. Implemented in PR 4 (Phase 3)."""
+"""RBAC module: `Permission`/`PermissionPolicy` domain, `AuthorizationPort`,
+`AuthorizeAction`/`ListAllowedActions` use cases, `PermissionService`
+adapter (request-scoped memo only, design.md §5/§5.6)."""

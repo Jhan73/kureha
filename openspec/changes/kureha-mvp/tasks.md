@@ -77,11 +77,11 @@ For **feature-branch-chain**: PR 1 targets the `kureha-mvp` tracker branch; PR 2
 
 ## Phase 3: Shared Kernel + Governance Modules
 
-- [ ] 3.1 `shared_kernel/`: `TenantContext`, `DomainError` hierarchy, `ClockPort`/`SystemClock`, `IdGeneratorPort`/`UuidGenerator`.
-- [ ] 3.2 `modules/governance/consent`: `Consent`/`ConsentPolicy` domain, `CheckConsent` use case, postgres adapter. Ref §11.
-- [ ] 3.3 `modules/governance/audit`: `AuditEntry` domain, `AuditLogPort`, postgres adapter honoring the §4.3 action catalog.
-- [ ] 3.4 `modules/governance/scope`: `ClinicalScopePolicy` inbound+outbound classifier interface. Ref §8.7.
-- [ ] 3.5 `modules/governance/rbac`: `Permission`/`PermissionPolicy`, `AuthorizationPort`, `AuthorizeAction`/`ListAllowedActions` use cases (precedence: user override > role > deny-default), `PermissionService` adapter with **request-scoped memo only, no cross-request cache**. Ref §5, §5.6.
+- [x] 3.1 `shared_kernel/`: `TenantContext`, `DomainError` hierarchy, `ClockPort`/`SystemClock`, `IdGeneratorPort`/`UuidGenerator`.
+- [x] 3.2 `modules/governance/consent`: `Consent`/`ConsentPolicy` domain, `CheckConsent` use case, postgres adapter. Ref §11.
+- [x] 3.3 `modules/governance/audit`: `AuditEntry` domain, `AuditLogPort`, postgres adapter honoring the §4.3 action catalog.
+- [x] 3.4 `modules/governance/scope`: `ClinicalScopePolicy` inbound+outbound classifier interface. Ref §8.7.
+- [x] 3.5 `modules/governance/rbac`: `Permission`/`PermissionPolicy`, `AuthorizationPort`, `AuthorizeAction`/`ListAllowedActions` use cases (precedence: user override > role > deny-default), `PermissionService` adapter with **request-scoped memo only, no cross-request cache**. Ref §5, §5.6.
 
 ## Phase 4: Identity & Session Management
 
@@ -127,7 +127,7 @@ For **feature-branch-chain**: PR 1 targets the `kureha-mvp` tracker branch; PR 2
 ## Phase 10: Platform Inbound — FastAPI
 
 - [ ] 10.1 Routers: web forms (schedule/reschedule/cancel/reminder), auth endpoints (login/refresh/logout), Calendar OAuth2 callback.
-- [ ] 10.2 `composition_root.py`: wire all adapters into use cases across every module. **Must** use `app.db.runtime_engine` (not `app.db.engine`) for every request-scoped repository/query adapter — `engine` connects as the `app_user` superuser and unconditionally bypasses RLS; only `runtime_engine` (`app_runtime` role) enforces it. See `app/db.py`'s module docstring and `tests/rls/test_app_runtime_role.py`.
+- [ ] 10.2 `composition_root.py`: wire all adapters into use cases across every module. **Must** use `app.db.runtime_engine` (not `app.db.engine`) for every request-scoped repository/query adapter — `engine` connects as the `app_user` superuser and unconditionally bypasses RLS; only `runtime_engine` (`app_runtime` role) enforces it. See `app/db.py`'s module docstring and `tests/rls/test_app_runtime_role.py`. **Must** also construct a fresh `PermissionService` (`modules/governance/rbac`) per request, never a singleton/`lru_cache`-wrapped `Depends()` — its request-scoped memo is only safe if a new instance is built per request (design.md §5.6); add a test asserting this at the composition-root level. See `PermissionService`'s module docstring.
 - [ ] 10.3 Central exception handler mapping domain/infra errors to the §21 envelope (`error_code`/`category`/`user_message`/`retryable`/`correlation_id`); unmapped exceptions fall back to generic `internal_error`/500.
 
 ## Phase 11: LangGraph Core
