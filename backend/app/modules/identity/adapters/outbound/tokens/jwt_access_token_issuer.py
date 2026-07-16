@@ -9,14 +9,13 @@ from datetime import timedelta
 
 import jwt
 
+from app.modules.identity.adapters.outbound.tokens.jwt_constants import DEFAULT_ALGORITHM
 from app.shared_kernel.clock import ClockPort
 from app.shared_kernel.tenant_context import TenantContext
 
-_ALGORITHM = "HS256"
-
 
 class JwtAccessTokenIssuer:
-    def __init__(self, *, secret: str, clock: ClockPort, algorithm: str = _ALGORITHM) -> None:
+    def __init__(self, *, secret: str, clock: ClockPort, algorithm: str = DEFAULT_ALGORITHM) -> None:
         self._secret = secret
         self._clock = clock
         self._algorithm = algorithm
