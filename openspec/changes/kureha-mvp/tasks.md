@@ -94,9 +94,9 @@ For **feature-branch-chain**: PR 1 targets the `kureha-mvp` tracker branch; PR 2
 
 ## Phase 5: Access Control Middleware & Rate Limiting
 
-- [ ] 5.1 FastAPI middleware: validate access JWT, resolve `users` row, enforce live active-status gate (`users.status` AND `staff_members.status`), emit `SET LOCAL app.*`. Ref §4.2.
-- [ ] 5.2 Deny+audit path when token valid but no mappable `users` row (never default to a role). Ref §4.2.
-- [ ] 5.3 Rate-limit middleware layer 3: auth mint/refresh via `rate_counters` UPSERT; chat token-bucket per-instance + LLM daily budget cap (`llm.budget_exceeded` audit). Ref §19.
+- [x] 5.1 FastAPI middleware: validate access JWT, resolve `users` row, enforce live active-status gate (`users.status` AND `staff_members.status`), emit `SET LOCAL app.*`. Ref §4.2.
+- [x] 5.2 Deny+audit path when token valid but no mappable `users` row (never default to a role). Ref §4.2.
+- [x] 5.3 Rate-limit middleware layer 3: auth mint/refresh via `rate_counters` UPSERT; chat token-bucket per-instance + LLM daily budget cap (`llm.budget_exceeded` audit). Ref §19.
 
 ## Phase 6: Tenancy Module
 

@@ -10,6 +10,21 @@ no `users` row" -- the `user-authentication` spec's "Authenticated Identity
 Maps to Authorization Context" requirement explicitly mandates this be
 audited ("the attempt MUST be audited"). Added following the exact
 `resource.verb` naming convention every other catalog entry already uses.
+
+`AUTH_INACTIVE_ACTOR`/`AUTH_RATE_LIMITED`/`LLM_BUDGET_EXCEEDED` (added
+Phase 5, tasks.md tasks 5.1/5.3, flagged not silently added):
+- `auth.inactive_actor`: design.md §4.2's "Gate de estado activo vivo"
+  requires the access-control middleware deny+audit a request whose
+  `users.status`/`staff_members.status` live lookup is not `active`, even
+  though the access token itself is still cryptographically valid and
+  unexpired. Distinct from `auth.unmapped_identity` (no `users` row at
+  all) -- this is "row found, but inactive".
+- `auth.rate_limited`: the `platform-hardening` spec's "Rate Limiting on
+  Authentication Endpoints" requirement is explicit that "the throttling
+  event MUST be auditable".
+- `llm.budget_exceeded`: design.md §19's LLM daily budget cap section is
+  explicit -- "El log de consumo se audita en `audit_logs` con
+  `action='llm.budget_exceeded'` cuando el cap se alcanza."
 """
 
 from dataclasses import dataclass, field
@@ -47,6 +62,9 @@ class AuditAction(str, Enum):
     SCOPE_ESCALATE = "scope.escalate"
     CONSENT_BLOCK = "consent.block"
     AUTH_UNMAPPED_IDENTITY = "auth.unmapped_identity"
+    AUTH_INACTIVE_ACTOR = "auth.inactive_actor"
+    AUTH_RATE_LIMITED = "auth.rate_limited"
+    LLM_BUDGET_EXCEEDED = "llm.budget_exceeded"
 
 
 @dataclass(frozen=True, slots=True)
