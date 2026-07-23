@@ -37,7 +37,7 @@ from app.modules.governance.rbac.domain.permission import ActionKey
 # assignment per role, covering every action key in `ACTION_CATALOG`
 # (action_catalog.py) that a role would plausibly need in ANY clinic.
 DEFAULT_DEV_ROLE_PERMISSIONS: dict[str, tuple[ActionKey, ...]] = {
-    "patient": ("appointment:view",),
+    "patient": ("appointment:view", "calendar:connect"),
     "professional": (
         "appointment:view",
         "appointment:reschedule",

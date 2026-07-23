@@ -23,6 +23,7 @@ _EXPECTED_KEYS = {
     "staff:deactivate",
     "shift:create",
     "shift:edit",
+    "calendar:connect",
 }
 
 

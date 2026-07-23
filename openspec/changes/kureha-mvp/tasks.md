@@ -120,16 +120,17 @@ For **feature-branch-chain**: PR 1 targets the `kureha-mvp` tracker branch; PR 2
 
 ## Phase 9: Calendar Sync Module
 
-- [ ] 9.1 `modules/calendar`: `CalendarEventMapping` domain, `CalendarSyncPort` (`upsert_event`/`delete_event`), `CredentialVaultPort`. Ref §7.1.
-- [ ] 9.2 `AesGcmVault` adapter (envelope AES-256-GCM, KEK from Secrets Manager via injected `endpoint_url`). Ref §7.4, §22.6.
-- [ ] 9.3 `GoogleCalendarAdapter`: idempotency-key derivation (`base32hex(appointment_id)` + `kureha` prefix), `409`=success handling, OAuth2 `state` CSRF check. Ref §7.3, §7.6.
-- [ ] 9.4 Use cases: `connect_patient_calendar` (email-mismatch handling), `sync_appointment_to_calendar` (post-commit, non-transactional, best-effort). Ref §7.2/7.3.
-- [ ] 9.5 Retry/reconciliation job for `pending`/`failed` sync with backoff + `attempts` cap. Ref §7.5.
+- [x] 9.1 `modules/calendar`: `CalendarEventMapping` domain, `CalendarSyncPort` (`upsert_event`/`delete_event`), `CredentialVaultPort`. Ref §7.1.
+- [x] 9.2 `AesGcmVault` adapter (envelope AES-256-GCM, KEK from Secrets Manager via injected `endpoint_url`). Ref §7.4, §22.6.
+- [x] 9.3 `GoogleCalendarAdapter`: idempotency-key derivation (`base32hex(appointment_id)` + `kureha` prefix), `409`=success handling, OAuth2 `state` CSRF check. Ref §7.3, §7.6.
+- [x] 9.4 Use cases: `connect_patient_calendar` (email-mismatch handling), `sync_appointment_to_calendar` (post-commit, non-transactional, best-effort). Ref §7.2/7.3.
+- [x] 9.5 Retry/reconciliation job for `pending`/`failed` sync with backoff + `attempts` cap. Ref §7.5.
 
 ## Phase 10: Platform Inbound — FastAPI
 
-- [ ] 10.1 Routers: web forms (schedule/reschedule/cancel/reminder), auth endpoints (login/refresh/logout), Calendar OAuth2 callback.
-- [ ] 10.2 `composition_root.py`: wire all adapters into use cases across every module. **Must** use `app.db.runtime_engine` (not `app.db.engine`) for every request-scoped repository/query adapter — `engine` connects as the `app_user` superuser and unconditionally bypasses RLS; only `runtime_engine` (`app_runtime` role) enforces it. See `app/db.py`'s module docstring and `tests/rls/test_app_runtime_role.py`. **Must** also construct a fresh `PermissionService` (`modules/governance/rbac`) per request, never a singleton/`lru_cache`-wrapped `Depends()` — its request-scoped memo is only safe if a new instance is built per request (design.md §5.6); add a test asserting this at the composition-root level. See `PermissionService`'s module docstring.
+- [ ] 10.1 Routers: web forms (schedule/reschedule/cancel/reminder), auth endpoints (login/refresh/logout), Calendar OAuth2 callback. **Must** wire the callback to `calendar` module's existing `generate_oauth_state`/`verify_oauth_state` (currently unit-tested but unwired, no call sites — flagged during PR9 verify) and pass `state` into `ConnectPatientCalendar.execute()`; add the missing `AuditAction.CALENDAR_OAUTH_CSRF_ATTEMPT` catalog entry (design.md requires it, never added) and audit rejections.
+- [ ] 10.2 `composition_root.py`: wire all adapters into use cases across every module. **Must** use `app.db.runtime_engine` (not `app.db.engine`) for every request-scoped repository/query adapter — `engine` connects as the `app_user` superuser and unconditionally bypasses RLS; only `runtime_engine` (`app_runtime` role) enforces it. See `app/db.py`'s module docstring and `tests/rls/test_app_runtime_role.py`. **Must** also construct a fresh `PermissionService` (`modules/governance/rbac`) per request, never a singleton/`lru_cache`-wrapped `Depends()` — its request-scoped memo is only safe if a new instance is built per request (design.md §5.6); add a test asserting this at the composition-root level. See `PermissionService`'s module docstring. **Must** also resolve `SyncAppointmentToCalendar`'s dual-role RLS requirement (`calendar_credentials_self` needs `app.role='patient'`, `calendar_sync_staff` needs staff roles) via a mid-transaction `SET LOCAL app.role` re-scope, and wire `UnwiredStaffStatusAdapter`/`UnwiredAppointmentSnapshotAdapter` (tasks 8.4/9.x seams) to real repositories.
+- [ ] 10.4 Before wiring a real calendar-disconnect/revoke flow: fix `PostgresCalendarCredentialRepository.revoke()` — it currently only sets `revoked_at` and does NOT clear `encrypted_refresh_token`/`nonce`/`wrapped_dek`, contradicting design.md §7.3 ("revoked_at + borrado del token cifrado") and its own port docstring (flagged during PR9 verify, currently dormant — no use case calls `revoke()` yet).
 - [ ] 10.3 Central exception handler mapping domain/infra errors to the §21 envelope (`error_code`/`category`/`user_message`/`retryable`/`correlation_id`); unmapped exceptions fall back to generic `internal_error`/500.
 
 ## Phase 11: LangGraph Core
