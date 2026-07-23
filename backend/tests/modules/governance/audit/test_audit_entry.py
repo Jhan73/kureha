@@ -48,6 +48,14 @@ _EXPECTED_ACTIONS = {
     # audita en audit_logs con action='llm.budget_exceeded' cuando el cap
     # se alcanza."
     "llm.budget_exceeded",
+    # Added by Phase 7 (scheduling module, tasks.md task 7.3): the
+    # `appointment-scheduling` spec's "Reminders and Confirmations"
+    # requirement is explicit -- "Every delivery attempt MUST be logged to
+    # the audit trail." No existing catalog entry covers a reminder dispatch
+    # attempt (as opposed to a create/reschedule/cancel mutation), so this is
+    # a new entry following the exact `resource.verb` convention every other
+    # one already uses -- flagged here, not silently added.
+    "appointment.reminder_sent",
 }
 
 

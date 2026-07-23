@@ -25,6 +25,12 @@ Phase 5, tasks.md tasks 5.1/5.3, flagged not silently added):
 - `llm.budget_exceeded`: design.md §19's LLM daily budget cap section is
   explicit -- "El log de consumo se audita en `audit_logs` con
   `action='llm.budget_exceeded'` cuando el cap se alcanza."
+
+`APPOINTMENT_REMINDER_SENT` (added Phase 7, tasks.md task 7.3, flagged not
+silently added): the `appointment-scheduling` spec's "Reminders and
+Confirmations" requirement is explicit -- "Every delivery attempt MUST be
+logged to the audit trail." No existing catalog entry distinguishes a
+reminder dispatch attempt from a create/reschedule/cancel mutation.
 """
 
 from dataclasses import dataclass, field
@@ -65,6 +71,7 @@ class AuditAction(str, Enum):
     AUTH_INACTIVE_ACTOR = "auth.inactive_actor"
     AUTH_RATE_LIMITED = "auth.rate_limited"
     LLM_BUDGET_EXCEEDED = "llm.budget_exceeded"
+    APPOINTMENT_REMINDER_SENT = "appointment.reminder_sent"
 
 
 @dataclass(frozen=True, slots=True)
