@@ -1,0 +1,44 @@
+"""Task 6.1: `PostgresTenantRepository` -- `TenantRepositoryPort` adapter
+over `tenants` (design.md §4.1, migration 8fc0dc6f958d).
+
+Uses `db_conn` (the `app_user`/elevated connection), NOT `rls_conn` --
+`tenants` carries no RLS (migration 613f9ea3526f), so either connection would
+technically work, but this mirrors `PostgresUserDirectory`'s test: a lookup
+that may run pre-auth (before any `app.*` GUC exists) should not depend on
+`app_runtime` being viable yet."""
+
+from tests.schema.helpers import make_tenant
+
+from app.modules.tenancy.adapters.outbound.postgres.tenant_repository import PostgresTenantRepository
+
+
+async def test_get_by_id_returns_the_tenant(db_conn) -> None:
+    tenant_id = await make_tenant(db_conn, name="Clinica Real")
+
+    repository = PostgresTenantRepository(db_conn)
+    tenant = await repository.get_by_id(tenant_id)
+
+    assert tenant is not None
+    assert tenant.id == tenant_id
+    assert tenant.name == "Clinica Real"
+    assert tenant.status == "active"
+    assert tenant.llm_daily_budget_tokens == 100_000
+
+
+async def test_get_by_id_returns_none_for_unknown_tenant(db_conn) -> None:
+    repository = PostgresTenantRepository(db_conn)
+
+    assert await repository.get_by_id("00000000-0000-0000-0000-000000000000") is None
+
+
+async def test_get_by_id_reflects_suspended_status(db_conn) -> None:
+    import sqlalchemy as sa
+
+    tenant_id = await make_tenant(db_conn)
+    await db_conn.execute(sa.text("UPDATE tenants SET status = 'suspended' WHERE id = :id"), {"id": tenant_id})
+
+    repository = PostgresTenantRepository(db_conn)
+    tenant = await repository.get_by_id(tenant_id)
+
+    assert tenant is not None
+    assert tenant.status == "suspended"

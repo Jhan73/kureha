@@ -100,15 +100,15 @@ For **feature-branch-chain**: PR 1 targets the `kureha-mvp` tracker branch; PR 2
 
 ## Phase 6: Tenancy Module
 
-- [ ] 6.1 `modules/tenancy`: `Tenant` domain + `TenantPolicy`, postgres adapter, lookup use cases consumed by other modules.
+- [x] 6.1 `modules/tenancy`: `Tenant` domain + `TenantPolicy`, postgres adapter, lookup use cases consumed by other modules.
 
 ## Phase 7: Scheduling Module
 
-- [ ] 7.1 Domain: `Appointment`, `Availability`, `RiskPolicy` (reads `bulk_cancel_threshold`, detects professional-change). Ref §8.4.
-- [ ] 7.2 Driven ports: `scheduling_repository`, `availability_repository`.
-- [ ] 7.3 Use cases: `schedule/reschedule/cancel_appointment`, `send_reminder` — each starts with `authorize(ctx, action)`. Ref §5.3.
-- [ ] 7.4 Postgres adapters (RLS-scoped queries, `EXCLUDE gist` conflict handling).
-- [ ] 7.5 In-process TTL availability cache (`cachetools.TTLCache`, key `tenant:site:resource:date`, bounded `maxsize`). Ref §18.
+- [x] 7.1 Domain: `Appointment`, `Availability`, `RiskPolicy` (reads `bulk_cancel_threshold`, detects professional-change). Ref §8.4.
+- [x] 7.2 Driven ports: `scheduling_repository`, `availability_repository`.
+- [x] 7.3 Use cases: `schedule/reschedule/cancel_appointment`, `send_reminder` — each starts with `authorize(ctx, action)`. Ref §5.3.
+- [x] 7.4 Postgres adapters (RLS-scoped queries, `EXCLUDE gist` conflict handling).
+- [x] 7.5 In-process TTL availability cache (`cachetools.TTLCache`, key `tenant:site:resource:date`, bounded `maxsize`). Ref §18.
 
 ## Phase 8: Staff Module
 
