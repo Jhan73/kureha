@@ -14,7 +14,11 @@ from app.modules.governance.rbac.application.use_cases.authorize_action import (
 from app.modules.scheduling.application.use_cases.schedule_appointment import ScheduleAppointment
 from app.modules.scheduling.domain.appointment import Appointment, AppointmentStatus
 from app.modules.scheduling.domain.availability import AvailabilitySlot, AvailabilityStatus
-from app.modules.scheduling.domain.errors import AvailabilitySlotNotFoundError, SlotUnavailableError
+from app.modules.scheduling.domain.errors import (
+    AvailabilitySlotNotFoundError,
+    SlotUnavailableError,
+    StaffNotAssignableError,
+)
 from app.shared_kernel.tenant_context import TenantContext
 
 _T0 = datetime(2026, 8, 1, 9, 0, tzinfo=timezone.utc)
@@ -112,6 +116,16 @@ class _FakeAuditLog:
         return "audit-1"
 
 
+class _FakeStaffStatusPort:
+    def __init__(self, *, assignable: bool = True) -> None:
+        self._assignable = assignable
+        self.checked: list[str] = []
+
+    async def is_assignable(self, tenant_id: str, professional_id: str) -> bool:
+        self.checked.append(professional_id)
+        return self._assignable
+
+
 def _ctx() -> TenantContext:
     return TenantContext(tenant_id="t1", role="reception", site_id="s1", actor_id="u1")
 
@@ -126,7 +140,11 @@ def _available_slot() -> AvailabilitySlot:
 async def test_authorize_is_checked_before_anything_else() -> None:
     authorization = _FakeAuthorizationPort(allowed=False)
     use_case = ScheduleAppointment(
-        AuthorizeAction(authorization), _FakeAvailabilityRepository(slot=None), _FakeSchedulingRepository(), _FakeAuditLog()
+        AuthorizeAction(authorization),
+        _FakeAvailabilityRepository(slot=None),
+        _FakeSchedulingRepository(),
+        _FakeAuditLog(),
+        _FakeStaffStatusPort(),
     )
 
     with pytest.raises(ActionNotPermittedError):
@@ -138,7 +156,11 @@ async def test_authorize_is_checked_before_anything_else() -> None:
 async def test_missing_slot_raises_not_found() -> None:
     authorization = _FakeAuthorizationPort(allowed=True)
     use_case = ScheduleAppointment(
-        AuthorizeAction(authorization), _FakeAvailabilityRepository(slot=None), _FakeSchedulingRepository(), _FakeAuditLog()
+        AuthorizeAction(authorization),
+        _FakeAvailabilityRepository(slot=None),
+        _FakeSchedulingRepository(),
+        _FakeAuditLog(),
+        _FakeStaffStatusPort(),
     )
 
     with pytest.raises(AvailabilitySlotNotFoundError):
@@ -156,10 +178,31 @@ async def test_unavailable_slot_raises_slot_unavailable() -> None:
         _FakeAvailabilityRepository(slot=taken_slot),
         _FakeSchedulingRepository(),
         _FakeAuditLog(),
+        _FakeStaffStatusPort(),
     )
 
     with pytest.raises(SlotUnavailableError):
         await use_case.execute(_ctx(), patient_id="p1", professional_id="pr1", site_id="s1", availability_id="av1")
+
+
+async def test_staff_not_assignable_denies_before_any_mutation() -> None:
+    """Spec `staff-registry` -> "Deactivated staff cannot be scheduled":
+    checked BEFORE the slot is reserved or the appointment created (tasks.md
+    task 8.4) -- neither repository must be touched on this deny."""
+    authorization = _FakeAuthorizationPort(allowed=True)
+    availability = _FakeAvailabilityRepository(slot=_available_slot())
+    scheduling = _FakeSchedulingRepository()
+    staff_status = _FakeStaffStatusPort(assignable=False)
+    use_case = ScheduleAppointment(
+        AuthorizeAction(authorization), availability, scheduling, _FakeAuditLog(), staff_status
+    )
+
+    with pytest.raises(StaffNotAssignableError):
+        await use_case.execute(_ctx(), patient_id="p1", professional_id="pr1", site_id="s1", availability_id="av1")
+
+    assert staff_status.checked == ["pr1"]
+    assert availability.reserved == []
+    assert scheduling.created == []
 
 
 async def test_happy_path_reserves_creates_and_audits() -> None:
@@ -167,7 +210,8 @@ async def test_happy_path_reserves_creates_and_audits() -> None:
     availability = _FakeAvailabilityRepository(slot=_available_slot())
     scheduling = _FakeSchedulingRepository()
     audit = _FakeAuditLog()
-    use_case = ScheduleAppointment(AuthorizeAction(authorization), availability, scheduling, audit)
+    staff_status = _FakeStaffStatusPort()
+    use_case = ScheduleAppointment(AuthorizeAction(authorization), availability, scheduling, audit, staff_status)
 
     appointment = await use_case.execute(
         _ctx(), patient_id="p1", professional_id="pr1", site_id="s1", availability_id="av1"
@@ -175,6 +219,7 @@ async def test_happy_path_reserves_creates_and_audits() -> None:
 
     assert appointment.id == "appt-1"
     assert appointment.status == AppointmentStatus.SCHEDULED
+    assert staff_status.checked == ["pr1"]
     assert availability.reserved == ["av1"]
     assert scheduling.created == [
         {"tenant_id": "t1", "site_id": "s1", "patient_id": "p1", "professional_id": "pr1", "availability_id": "av1"}
