@@ -37,10 +37,16 @@ class ActionCatalogEntry:
 # referenced by an `authorize.execute(ctx, action=...)` call site in
 # `app/modules/**/application/use_cases/*.py` today (grepped, not guessed).
 # design.md §5.1's catalog comment additionally lists `appointment:cancel_bulk`
-# and `calendar:connect` as FUTURE keys -- they have no call site yet
-# (`RiskPolicy`/bulk-cancel orchestration and the calendar module are Phase 11
-# / Phase 9 work, not built), so seeding them here would be inventing data
-# ahead of the code that needs it. Extend this tuple whenever a new
+# as a FUTURE key -- it has no call site yet (`RiskPolicy`/bulk-cancel
+# orchestration is Phase 11 work, not built), so seeding it here would be
+# inventing data ahead of the code that needs it. `calendar:connect` WAS in
+# that same "future" bucket until this session (tasks.md Phase 9,
+# `ConnectPatientCalendar` -- app/modules/calendar/application/use_cases/
+# connect_patient_calendar.py) added the real call site; added here in the
+# SAME PR per this task's own instructions (a new `authorize()` call site
+# must register its key here or the action becomes permanently
+# undeniable/ungrantable -- the exact gap task 3.6 exists to close, flagged
+# again so it doesn't silently regress). Extend this tuple whenever a new
 # `authorize()` call site is introduced elsewhere in the codebase.
 ACTION_CATALOG: tuple[ActionCatalogEntry, ...] = (
     ActionCatalogEntry("appointment:create", "Schedule a new appointment"),
@@ -52,6 +58,7 @@ ACTION_CATALOG: tuple[ActionCatalogEntry, ...] = (
     ActionCatalogEntry("staff:deactivate", "Deactivate a staff member"),
     ActionCatalogEntry("shift:create", "Create a shift for a staff member"),
     ActionCatalogEntry("shift:edit", "Edit an existing shift"),
+    ActionCatalogEntry("calendar:connect", "Connect a patient's Google Calendar via OAuth2"),
 )
 
 
