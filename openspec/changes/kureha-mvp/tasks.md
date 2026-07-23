@@ -82,6 +82,7 @@ For **feature-branch-chain**: PR 1 targets the `kureha-mvp` tracker branch; PR 2
 - [x] 3.3 `modules/governance/audit`: `AuditEntry` domain, `AuditLogPort`, postgres adapter honoring the §4.3 action catalog.
 - [x] 3.4 `modules/governance/scope`: `ClinicalScopePolicy` inbound+outbound classifier interface. Ref §8.7.
 - [x] 3.5 `modules/governance/rbac`: `Permission`/`PermissionPolicy`, `AuthorizationPort`, `AuthorizeAction`/`ListAllowedActions` use cases (precedence: user override > role > deny-default), `PermissionService` adapter with **request-scoped memo only, no cross-request cache**. Ref §5, §5.6.
+- [x] 3.6 Seed `action_permissions`/`role_permissions` (migration or seed script) with a **PLACEHOLDER, dev-only** role→action matrix — discovered during PR8 verify that with no seed data, `AuthorizeAction` denies every action by construction against a real Postgres (unit tests mask this via `_FakeAuthorizationPort`). The real per-tenant matrix content is business input pending per §16 ("input de negocio pendiente") — this placeholder unblocks local/dev/integration testing only; **must be replaced with the sign-off'd matrix before any non-dev environment**.
 
 ## Phase 4: Identity & Session Management
 
@@ -112,9 +113,10 @@ For **feature-branch-chain**: PR 1 targets the `kureha-mvp` tracker branch; PR 2
 
 ## Phase 8: Staff Module
 
-- [ ] 8.1 Domain: `StaffMember`, `Shift`, `StaffPolicy` (no-overlap; deactivate never deletes). Ref §6.
-- [ ] 8.2 Use cases: `register_staff`, `deactivate_staff`, `create_shift`, `edit_shift` behind `AuthorizeAction` (`staff.*`/`shift.*`), audited.
-- [ ] 8.3 Postgres adapters for staff/shift repositories.
+- [x] 8.1 Domain: `StaffMember`, `Shift`, `StaffPolicy` (no-overlap; deactivate never deletes). Ref §6.
+- [x] 8.2 Use cases: `register_staff`, `deactivate_staff`, `create_shift`, `edit_shift` behind `AuthorizeAction` (`staff.*`/`shift.*`), audited.
+- [x] 8.3 Postgres adapters for staff/shift repositories.
+- [x] 8.4 Scheduling enforces the `staff-registry` MUST scenario "deactivated staff cannot be scheduled" via a driven `StaffStatusPort` defined in `modules/scheduling` (queried by `schedule_appointment`/`reschedule_appointment`), consumed the same way `tenancy`'s `GetTenant` lookup is meant to be consumed by other modules — no cross-module Python imports; concrete adapter wired at composition root (Phase 10).
 
 ## Phase 9: Calendar Sync Module
 

@@ -25,3 +25,15 @@ class SlotUnavailableError(ConflictError):
     spec `appointment-scheduling` -> "Double-booking prevented under
     concurrency": the losing request MUST fail and receive alternative-slot
     suggestions, which this error's caller is responsible for offering)."""
+
+
+class StaffNotAssignableError(ValidationError):
+    """The targeted professional is not currently assignable to a new
+    appointment (spec `staff-registry` -> "Deactivated staff cannot be
+    scheduled": deactivation in the `staff` module MUST NOT let scheduling
+    keep booking that professional). Resolved via `StaffStatusPort`
+    (application/ports/driven/staff_status_port.py, tasks.md task 8.4) --
+    scheduling never imports `modules.staff` directly (business modules
+    never import each other's internals, backend/AGENTS.md); this error is
+    raised from scheduling's own use cases based purely on the port's
+    boolean answer, before any appointment mutation is attempted."""
