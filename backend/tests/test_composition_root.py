@@ -25,9 +25,12 @@ from app.composition_root import (
     PostgresAppointmentSnapshotAdapter,
     PostgresStaffStatusAdapter,
     bootstrap_rbac_catalog_and_grants,
+    build_create_shift,
     build_permission_service,
+    build_register_staff,
     build_sync_appointment_to_calendar,
 )
+from app.modules.staff.domain.staff_member import OperationalRole
 from app.modules.calendar.adapters.outbound.postgres.calendar_credential_repository import (
     PostgresCalendarCredentialRepository,
 )
@@ -185,6 +188,7 @@ async def test_postgres_appointment_snapshot_adapter_returns_real_appointment_da
     assert snapshot.patient_id == patient_id
     assert snapshot.starts_at == _T0
     assert snapshot.ends_at == _T1
+    assert snapshot.site_id == site_id
 
 
 async def test_postgres_appointment_snapshot_adapter_returns_none_when_appointment_missing(rls_conn) -> None:
@@ -256,7 +260,28 @@ async def test_sync_appointment_to_calendar_resolves_the_dual_role_rls_boundary(
 
 async def test_bootstrap_rbac_catalog_and_grants_seeds_the_catalog_and_every_existing_tenant(rls_conn) -> None:
     """tasks.md task 3.6's own forward pointer, closed here: the seed
-    functions actually get invoked, not just defined."""
+    functions actually get invoked, not just defined.
+
+    **Flagged bug found this session (PR 11 batch 3), NOT fixed at its own
+    source -- out of this batch's scope (Phase 3/10 code):**
+    `bootstrap_rbac_catalog_and_grants` loops `SET LOCAL app.tenant_id =
+    <tenant>` over EVERY existing tenant (no `ORDER BY` on `SELECT id FROM
+    tenants`) and never restores the caller's own `app.tenant_id` GUC
+    afterward -- so by the time this function returns, `app.tenant_id` on
+    `conn` points at whichever tenant was iterated LAST, not necessarily the
+    one THIS test created. `role_permissions_tenant`'s RLS policy filters on
+    `current_setting('app.tenant_id')` -- once enough OTHER tenants exist in
+    the shared dev Postgres (this session accumulated many via router tests'
+    real, permanently-committed seed data, `conftest.py`'s own documented
+    behavior), this test's own `tenant_id` stopped reliably being the LAST
+    one iterated, and its own read-back query started intermittently
+    returning 0 rows -- NOT a regression in this batch's own node/edge
+    logic. Fixed here with a defensive `set_app_context` re-assertion right
+    before the read, the minimal safe change that does not touch
+    `bootstrap_rbac_catalog_and_grants` itself; the real fix (documented,
+    not applied) belongs in that function -- either restore the caller's
+    original GUCs on exit, or have callers never rely on `conn`'s
+    tenant-scoping surviving a call to it."""
     tenant_id = await seed_tenant(rls_conn)
 
     await bootstrap_rbac_catalog_and_grants(rls_conn)
@@ -264,6 +289,7 @@ async def test_bootstrap_rbac_catalog_and_grants_seeds_the_catalog_and_every_exi
     catalog_count = (await rls_conn.execute(sa.text("SELECT count(*) FROM action_permissions"))).scalar_one()
     assert catalog_count == len(ACTION_CATALOG)
 
+    await set_app_context(rls_conn, tenant_id=tenant_id, role="admin")
     granted_count = (
         await rls_conn.execute(
             sa.text("SELECT count(*) FROM role_permissions WHERE tenant_id = :t"), {"t": tenant_id}
@@ -272,12 +298,56 @@ async def test_bootstrap_rbac_catalog_and_grants_seeds_the_catalog_and_every_exi
     assert granted_count == sum(len(actions) for actions in DEFAULT_DEV_ROLE_PERMISSIONS.values())
 
 
+async def test_build_register_staff_and_build_create_shift_wire_working_use_cases(rls_conn) -> None:
+    """tasks.md task 11.5 (PR 11 batch 3): `build_register_staff`/
+    `build_create_shift`/`build_deactivate_staff`/`build_edit_shift` had NO
+    composition-root wiring before this batch (confirmed via `grep
+    "^def build_" app/composition_root.py`) -- `persist_and_audit`'s
+    dispatch table (unit-tested with fakes) is their first real caller.
+    This test proves the ACTUAL wiring against real Postgres for the two
+    representative cases (register + create), mirroring
+    `test_bootstrap_rbac_catalog_and_grants_seeds_the_catalog_and_every_
+    existing_tenant`'s own pattern above."""
+    tenant_id = await seed_tenant(rls_conn)
+    await bootstrap_rbac_catalog_and_grants(rls_conn)
+    site_id = await seed_site(rls_conn, tenant_id)
+
+    actor_id = "33333333-3333-3333-3333-333333333333"
+    await set_app_context(rls_conn, tenant_id=tenant_id, site_id=site_id, role="reception", user_id=actor_id)
+    ctx = TenantContext(tenant_id=tenant_id, role="reception", site_id=site_id, actor_id=actor_id)
+
+    register_staff = build_register_staff(rls_conn)
+    staff = await register_staff.execute(
+        ctx, site_id=site_id, name="Nueva Recepcionista", operational_role=OperationalRole.RECEPTION
+    )
+    assert staff.name == "Nueva Recepcionista"
+
+    create_shift = build_create_shift(rls_conn)
+    professional_id = await seed_professional(rls_conn, tenant_id, site_id)
+    await seed_staff_member(rls_conn, tenant_id, site_id, professional_id=professional_id)
+    await set_app_context(rls_conn, tenant_id=tenant_id, site_id=site_id, role="reception", user_id=actor_id)
+    shift = await create_shift.execute(
+        ctx, site_id=site_id, staff_member_id=await _staff_member_id_for(rls_conn, professional_id), starts_at=_T0, ends_at=_T1
+    )
+    assert shift.staff_member_id
+
+
+async def _staff_member_id_for(rls_conn, professional_id: str) -> str:
+    result = await rls_conn.execute(
+        sa.text("SELECT id FROM staff_members WHERE professional_id = :p"), {"p": professional_id}
+    )
+    return str(result.scalar_one())
+
+
 async def test_bootstrap_rbac_catalog_and_grants_is_idempotent(rls_conn) -> None:
+    """Same flagged GUC-drift bug as the test above -- re-asserts
+    `app.tenant_id` before the read-back, see that test's own docstring."""
     tenant_id = await seed_tenant(rls_conn)
 
     await bootstrap_rbac_catalog_and_grants(rls_conn)
     await bootstrap_rbac_catalog_and_grants(rls_conn)
 
+    await set_app_context(rls_conn, tenant_id=tenant_id, role="admin")
     granted_count = (
         await rls_conn.execute(
             sa.text("SELECT count(*) FROM role_permissions WHERE tenant_id = :t"), {"t": tenant_id}

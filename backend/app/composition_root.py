@@ -30,6 +30,13 @@ and `build_runtime_session()` (wires `AccessControlMiddleware`'s
 `app/platform/outbound/channel/console_channel.py` per design.md §2.5's
 folder layout, not here -- this module only wires it in.
 
+**Session 3 (tasks.md task 11.5, PR 11 batch 3):** `build_register_staff`/
+`build_deactivate_staff`/`build_create_shift`/`build_edit_shift` -- the four
+staff use cases had NO composition-root wiring anywhere before this batch
+(confirmed via `grep "^def build_" app/composition_root.py` per this
+task's own instruction) -- `persist_and_audit`'s (graph/nodes/
+persist_and_audit.py) dispatch table is their first real caller.
+
 The original four gaps this module closed in task 10.2's first session:
 
 1. **`runtime_engine`, never `engine`, for request-scoped work**
@@ -74,6 +81,7 @@ from contextlib import asynccontextmanager
 from datetime import timedelta
 
 import httpx
+import psycopg
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
@@ -122,7 +130,12 @@ from app.modules.scheduling.application.use_cases.cancel_appointment import Canc
 from app.modules.scheduling.application.use_cases.reschedule_appointment import RescheduleAppointment
 from app.modules.scheduling.application.use_cases.schedule_appointment import ScheduleAppointment
 from app.modules.scheduling.application.use_cases.send_reminder import SendReminder
+from app.modules.staff.adapters.outbound.postgres.shift_repository import PostgresShiftRepository
 from app.modules.staff.adapters.outbound.postgres.staff_repository import PostgresStaffRepository
+from app.modules.staff.application.use_cases.create_shift import CreateShift
+from app.modules.staff.application.use_cases.deactivate_staff import DeactivateStaff
+from app.modules.staff.application.use_cases.edit_shift import EditShift
+from app.modules.staff.application.use_cases.register_staff import RegisterStaff
 from app.modules.staff.domain.staff_policy import StaffPolicy
 from app.platform.inbound.api.access_control.role_scope import scoped_as_patient
 from app.platform.inbound.api.access_control.runtime_session import EngineRuntimeSession
@@ -159,6 +172,51 @@ async def open_elevated_connection() -> AsyncIterator[AsyncConnection]:
     async with engine.connect() as conn:
         async with conn.begin():
             yield conn
+
+
+def _checkpointer_psycopg_dsn() -> str:
+    """`langgraph-checkpoint-postgres` requires a `psycopg` connection, not
+    `asyncpg` -- a genuinely separate physical connection from every other
+    `AsyncConnection` in this module (all `asyncpg`, per `app.db`'s own
+    docstring). Mirrors migration `043b5dd9768e`'s own `_psycopg_dsn()`
+    (same driver-suffix-stripping reason), but built from
+    `runtime_database_url` (`app_runtime`, RLS-enforced), never
+    `database_url` (`app_user`, superuser, unconditionally bypasses RLS --
+    `checkpoints`/`checkpoint_writes`/`checkpoint_blobs` genuinely need
+    their `thread_id`-tenant-prefix RLS policy enforced, the same as every
+    other tenant-scoped table this module wires)."""
+    return settings.runtime_database_url.replace("postgresql+asyncpg://", "postgresql://")
+
+
+@asynccontextmanager
+async def open_checkpointer_connection(tenant_id: str) -> AsyncIterator[psycopg.AsyncConnection]:
+    """Opens ONE dedicated, per-request `psycopg` connection for
+    `AsyncPostgresSaver` (`langgraph.checkpoint.postgres.aio`), with
+    `app.tenant_id` set for the connection's lifetime -- see
+    `graph/build_graph.py`'s own module docstring for the FLAGGED gap this
+    closes only partially: `checkpoints`/`checkpoint_writes`/
+    `checkpoint_blobs`' RLS policy (migration `043b5dd9768e`) filters on
+    `current_setting('app.tenant_id')`, and nothing inside
+    `langgraph-checkpoint-postgres` itself sets that GUC -- this function is
+    the one sanctioned place that does, for whichever ONE tenant this
+    specific chat request belongs to (task 11.7's chat endpoint is this
+    function's only caller today).
+
+    `autocommit=True` (no explicit transaction wrapping this connection's
+    lifetime) -- unlike `open_runtime_connection()`/`open_elevated_
+    connection()` above, `AsyncPostgresSaver` manages its OWN multi-statement
+    writes internally per checkpoint `put`/`put_writes` call; wrapping the
+    WHOLE connection in one long-lived transaction this function does not
+    control the boundaries of would risk holding a transaction open for the
+    entire duration of a chat turn (including any LLM latency) for no
+    benefit `SET LOCAL` would otherwise provide -- there is no OTHER write on
+    this connection that needs its GUC-scoping to be transaction-scoped
+    (`SET` without `LOCAL`, session-scoped, is deliberately used here for
+    exactly that reason -- see the plain `SET` below, not `SET LOCAL`)."""
+    async with await psycopg.AsyncConnection.connect(_checkpointer_psycopg_dsn(), autocommit=True) as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(f"SET app.tenant_id = '{tenant_id}'")
+        yield conn
 
 
 def build_permission_service(conn: AsyncConnection) -> PermissionService:
@@ -217,7 +275,10 @@ class PostgresAppointmentSnapshotAdapter:
         if appointment is None:
             return None
         return AppointmentSyncSnapshot(
-            patient_id=appointment.patient_id, starts_at=appointment.starts_at, ends_at=appointment.ends_at
+            patient_id=appointment.patient_id,
+            starts_at=appointment.starts_at,
+            ends_at=appointment.ends_at,
+            site_id=appointment.site_id,
         )
 
 
@@ -503,6 +564,34 @@ def build_google_calendar_adapter(http_client: httpx.AsyncClient) -> GoogleCalen
     )
 
 
+def build_register_staff(conn: AsyncConnection) -> RegisterStaff:
+    """`conn` MUST be an `open_runtime_connection()` connection with the
+    caller's `app.*` GUCs already set (RLS-scoped, RBAC-gated). Added this
+    session (tasks.md task 11.5's `persist_and_audit` dispatch table) --
+    `RegisterStaff` had no composition-root wiring before this batch (task
+    10.1's own text scoped that router session to web-forms/auth/calendar
+    only, deliberately not inventing staff HTTP routes; `persist_and_audit`
+    is the first real caller)."""
+    return RegisterStaff(build_authorize_action(conn), PostgresStaffRepository(conn), PostgresAuditLog(conn))
+
+
+def build_deactivate_staff(conn: AsyncConnection) -> DeactivateStaff:
+    return DeactivateStaff(build_authorize_action(conn), PostgresStaffRepository(conn), PostgresAuditLog(conn))
+
+
+def build_create_shift(conn: AsyncConnection) -> CreateShift:
+    return CreateShift(
+        build_authorize_action(conn),
+        PostgresStaffRepository(conn),
+        PostgresShiftRepository(conn),
+        PostgresAuditLog(conn),
+    )
+
+
+def build_edit_shift(conn: AsyncConnection) -> EditShift:
+    return EditShift(build_authorize_action(conn), PostgresShiftRepository(conn), PostgresAuditLog(conn))
+
+
 __all__ = [
     "AppointmentSnapshotPort",
     "PostgresAppointmentSnapshotAdapter",
@@ -515,8 +604,12 @@ __all__ = [
     "build_authorize_action",
     "build_cancel_appointment",
     "build_connect_patient_calendar",
+    "build_create_shift",
+    "build_deactivate_staff",
+    "build_edit_shift",
     "build_google_calendar_adapter",
     "build_login",
+    "build_register_staff",
     "build_logout",
     "build_permission_service",
     "build_refresh_token",
@@ -525,6 +618,7 @@ __all__ = [
     "build_schedule_appointment",
     "build_send_reminder",
     "build_sync_appointment_to_calendar",
+    "open_checkpointer_connection",
     "open_elevated_connection",
     "open_runtime_connection",
 ]

@@ -26,6 +26,16 @@ class AppointmentSyncSnapshot:
     patient_id: str
     starts_at: datetime
     ends_at: datetime
+    site_id: str | None = None
+    """Added tasks.md task 11.5 (PR 11 batch 3, `platform/inbound/graph/
+    nodes/calendar_sync.py`): that graph node needs `site_id` to call
+    `SyncAppointmentToCalendar.execute(..., site_id=...)` for the FIRST sync
+    of a just-created appointment, where (unlike `RetryPendingCalendarSyncs`
+    above) no `calendar_sync` row exists yet to read `site_id` off of.
+    Optional and unused by `RetryPendingCalendarSyncs` (it already has
+    `record.site_id` from the `calendar_sync` row itself) -- kept optional
+    rather than required so this remains a strictly additive, non-breaking
+    change to an existing port."""
 
 
 class AppointmentSnapshotPort(Protocol):
