@@ -19,6 +19,10 @@ additions built but nothing had assembled into a running app yet:
    get wired to the real Postgres engines" -- this module is that wiring,
    for the first time.
 4. **Task 10.1** -- mounts the auth/scheduling/calendar-oauth routers.
+5. **Task 11.7 (PR 11 batch 3)** -- mounts the chat router (`POST /chat`),
+   the non-streaming LangGraph invocation endpoint -- see
+   `routers/chat.py`'s own module docstring for its `thread_id`
+   ownership-validation contract (design.md §8.6).
 
 **`_ElevatedAuditLog`/`_ElevatedRateCounterStore`/`_resolve_live_actor`
 below are NOT in `composition_root.py`** -- they are glue that is specific
@@ -58,6 +62,7 @@ from app.platform.inbound.api.rate_limit.auth_rate_limit_middleware import (
 from app.platform.inbound.api.rate_limit.fixed_window_limiter import FixedWindowRateLimiter
 from app.platform.inbound.api.routers import auth as auth_router
 from app.platform.inbound.api.routers import calendar_oauth as calendar_oauth_router
+from app.platform.inbound.api.routers import chat as chat_router
 from app.platform.inbound.api.routers import scheduling as scheduling_router
 from app.shared_kernel.clock import SystemClock
 
@@ -131,6 +136,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router.router)
     app.include_router(scheduling_router.router)
     app.include_router(calendar_oauth_router.router)
+    app.include_router(chat_router.router)
 
     audit_log = _ElevatedAuditLog()
 
