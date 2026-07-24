@@ -23,7 +23,20 @@ success, same reasoning as `upsert_event`'s `409` case.
 
 **Never raises for a Google-side failure** -- every branch returns
 `CalendarSyncResult(ok=False, error=...)` instead (design.md §7.2's
-best-effort contract; matches `CalendarSyncPort`'s own docstring)."""
+best-effort contract; matches `CalendarSyncPort`'s own docstring).
+
+**`exchange_authorization_code` (added tasks.md task 10.1, routers):** the
+one method on this class that does NOT follow the "never raises" contract
+above -- it belongs to the OAuth2 AUTHORIZATION leg (the callback route,
+BEFORE any `CalendarCredential`/refresh_token exists yet), not the
+`CalendarSyncPort` best-effort contract `upsert_event`/`delete_event` follow.
+Flagged, not silently invented: no call site anywhere in this codebase
+exchanged an authorization `code` for tokens before task 10.1 -- every other
+method here starts from an ALREADY-issued refresh token. Raises
+`CalendarOAuthExchangeError` (a `ValidationError` subclass, maps to a 422
+via `platform/inbound/api/errors.py`) on any non-2xx response, so the
+callback route can let it propagate through the central exception handler
+rather than hand-rolling its own error response."""
 
 import hashlib
 import hmac
@@ -32,9 +45,12 @@ import httpx
 
 from app.modules.calendar.domain.calendar_credential import CalendarCredential
 from app.modules.calendar.domain.calendar_event_mapping import CalendarEventMapping, CalendarSyncResult
+from app.modules.calendar.domain.errors import CalendarOAuthExchangeError
+from app.modules.calendar.domain.oauth_exchange import AuthorizationCodeExchange
 
 _TOKEN_URL = "https://oauth2.googleapis.com/token"
 _EVENTS_URL = "https://www.googleapis.com/calendar/v3/calendars/primary/events"
+_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
 _IDEMPOTENT_DELETE_STATUSES = (200, 204, 404, 410)
 
 
@@ -96,6 +112,54 @@ class GoogleCalendarAdapter:
         if response.status_code in _IDEMPOTENT_DELETE_STATUSES:
             return CalendarSyncResult(ok=True, google_event_id=google_event_id)
         return CalendarSyncResult(ok=False, error=f"delete failed: {response.status_code}")
+
+    async def exchange_authorization_code(self, code: str, *, redirect_uri: str) -> AuthorizationCodeExchange:
+        """`grant_type=authorization_code` leg of design.md §7.3's OAuth2
+        flow -- exchanges the callback's `code` for a refresh token, then
+        resolves the authorized account's email via Google's `userinfo`
+        endpoint (needed by `ConnectPatientCalendar`'s registered-email
+        comparison, which the caller cannot get from anywhere else)."""
+        try:
+            response = await self._http.post(
+                _TOKEN_URL,
+                data={
+                    "grant_type": "authorization_code",
+                    "code": code,
+                    "client_id": self._client_id,
+                    "client_secret": self._client_secret,
+                    "redirect_uri": redirect_uri,
+                },
+            )
+        except Exception as exc:  # noqa: BLE001 -- transport failure, not a Google-rejected code
+            raise CalendarOAuthExchangeError(f"authorization code exchange request failed: {exc}") from exc
+
+        if response.status_code >= 400:
+            raise CalendarOAuthExchangeError(f"authorization code exchange rejected: {response.status_code}")
+
+        payload = response.json()
+        refresh_token = payload.get("refresh_token")
+        access_token = payload.get("access_token")
+        if not refresh_token or not access_token:
+            # Google omits `refresh_token` on a re-consent without
+            # `access_type=offline&prompt=consent` -- a genuine caller-side
+            # misconfiguration of the /authorize redirect, not a transport
+            # error, so it gets the same client-validation mapping.
+            raise CalendarOAuthExchangeError("token response missing refresh_token/access_token")
+
+        email = await self._fetch_userinfo_email(access_token)
+        return AuthorizationCodeExchange(refresh_token=refresh_token, google_email=email, scope=payload.get("scope", ""))
+
+    async def _fetch_userinfo_email(self, access_token: str) -> str:
+        try:
+            response = await self._http.get(_USERINFO_URL, headers=self._auth_headers(access_token))
+        except Exception as exc:  # noqa: BLE001
+            raise CalendarOAuthExchangeError(f"userinfo request failed: {exc}") from exc
+        if response.status_code >= 400:
+            raise CalendarOAuthExchangeError(f"userinfo request rejected: {response.status_code}")
+        email = response.json().get("email")
+        if not email:
+            raise CalendarOAuthExchangeError("userinfo response missing email")
+        return email
 
     async def _exchange_refresh_token(self, refresh_token: str) -> str:
         response = await self._http.post(

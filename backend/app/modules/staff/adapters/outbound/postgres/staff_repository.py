@@ -64,6 +64,14 @@ class PostgresStaffRepository:
         row = result.first()
         return self._row_to_staff_member(row) if row is not None else None
 
+    async def find_by_professional_id(self, tenant_id: str, professional_id: str) -> StaffMember | None:
+        result = await self._conn.execute(
+            text(_SELECT + " WHERE tenant_id = :tenant_id AND professional_id = :professional_id"),
+            {"tenant_id": tenant_id, "professional_id": professional_id},
+        )
+        row = result.first()
+        return self._row_to_staff_member(row) if row is not None else None
+
     async def deactivate_staff_member(self, tenant_id: str, staff_member_id: str) -> StaffMember:
         result = await self._conn.execute(
             text(

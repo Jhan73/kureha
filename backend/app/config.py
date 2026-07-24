@@ -59,6 +59,21 @@ class Settings(BaseSettings):
     identity_refresh_token_ttl_days: int = 30
     identity_refresh_grace_period_seconds: int = 30
 
+    # Calendar module (design.md §7.3, tasks.md task 10.1). `GoogleCalendarAdapter`
+    # takes these via constructor injection (composition root), same convention as
+    # `identity_access_token_secret` above -- this section is scaffolding for that
+    # wiring, consumed for the first time by task 10.1's OAuth2 authorize/callback
+    # routers.
+    calendar_google_client_id: str = "dev_only_google_client_id_change_me"
+    calendar_google_client_secret: str = "dev_only_google_client_secret_change_me"
+    calendar_oauth_redirect_uri: str = "http://localhost:8000/calendar/oauth/callback"
+    # HMAC secret for `GoogleCalendarAdapter.generate_oauth_state`/`verify_oauth_state`
+    # (design.md §7.3's anti-CSRF `state`) -- deliberately a SEPARATE secret from
+    # `identity_access_token_secret`: the two protect different things (a signed
+    # session token vs. a one-shot CSRF nonce) and rotating one must not silently
+    # invalidate the other.
+    calendar_oauth_state_secret: str = "dev_only_calendar_oauth_state_secret_change_me"
+
 
 @lru_cache
 def get_settings() -> Settings:

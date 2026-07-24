@@ -59,6 +59,31 @@ async def test_get_staff_member_returns_none_for_unknown_id(rls_conn) -> None:
     assert await repository.get_staff_member(tenant_id, "00000000-0000-0000-0000-000000000000") is None
 
 
+async def test_find_by_professional_id_returns_the_matching_staff_member(rls_conn) -> None:
+    """Task 10.2 (composition-root seam for `StaffStatusPort`, tasks.md task
+    8.4): `ScheduleAppointment`/`RescheduleAppointment` only ever have a
+    `professional_id`, never a `staff_members.id` -- the real
+    `StaffStatusPort` adapter needs a lookup keyed by `professional_id`, not
+    `get_staff_member`'s primary-key lookup."""
+    tenant_id, site_id, professional_id = await _seed_scenario(rls_conn)
+    repository = PostgresStaffRepository(rls_conn)
+    created = await repository.create_staff_member(
+        tenant_id, site_id=site_id, name="Ana Torres", operational_role=OperationalRole.PROFESSIONAL,
+        professional_id=professional_id,
+    )
+
+    fetched = await repository.find_by_professional_id(tenant_id, professional_id)
+
+    assert fetched == created
+
+
+async def test_find_by_professional_id_returns_none_when_no_staff_record_exists(rls_conn) -> None:
+    tenant_id, site_id, professional_id = await _seed_scenario(rls_conn)
+    repository = PostgresStaffRepository(rls_conn)
+
+    assert await repository.find_by_professional_id(tenant_id, professional_id) is None
+
+
 async def test_deactivate_staff_member_sets_status_inactive_never_deletes(rls_conn) -> None:
     tenant_id, site_id, professional_id = await _seed_scenario(rls_conn)
     repository = PostgresStaffRepository(rls_conn)
