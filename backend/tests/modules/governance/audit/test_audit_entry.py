@@ -56,6 +56,13 @@ _EXPECTED_ACTIONS = {
     # a new entry following the exact `resource.verb` convention every other
     # one already uses -- flagged here, not silently added.
     "appointment.reminder_sent",
+    # Added by Phase 10 (calendar OAuth2 callback router, tasks.md task
+    # 10.1): design.md §7.3's anti-CSRF `state` check is a security control
+    # on the callback route -- a mismatched/missing `state` is a genuine
+    # CSRF-attempt signal, distinct from `calendar.connect`'s existing
+    # `status=email_mismatch` payload branch. Task 10.1's own text requires
+    # this exact catalog entry.
+    "calendar.oauth_csrf_attempt",
 }
 
 

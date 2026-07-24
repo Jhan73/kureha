@@ -31,6 +31,18 @@ silently added): the `appointment-scheduling` spec's "Reminders and
 Confirmations" requirement is explicit -- "Every delivery attempt MUST be
 logged to the audit trail." No existing catalog entry distinguishes a
 reminder dispatch attempt from a create/reschedule/cancel mutation.
+
+`CALENDAR_OAUTH_CSRF_ATTEMPT` (added Phase 10, tasks.md task 10.1, flagged
+not silently added): design.md §7.3's anti-CSRF `state` check
+(`GoogleCalendarAdapter.generate_oauth_state`/`verify_oauth_state`) is a
+security control on the OAuth2 callback route -- a mismatched/missing
+`state` is a genuine CSRF-attempt signal, distinct from
+`CALENDAR_CONNECT`'s existing `status=email_mismatch` payload branch (that
+one is an ordinary business outcome of a legitimately-authorized flow; this
+one means the callback's CSRF check itself failed, before
+`ConnectPatientCalendar` is ever called). Task 10.1's own text requires this
+exact catalog entry and requires the callback route to audit rejections
+with it.
 """
 
 from dataclasses import dataclass, field
@@ -72,6 +84,7 @@ class AuditAction(str, Enum):
     AUTH_RATE_LIMITED = "auth.rate_limited"
     LLM_BUDGET_EXCEEDED = "llm.budget_exceeded"
     APPOINTMENT_REMINDER_SENT = "appointment.reminder_sent"
+    CALENDAR_OAUTH_CSRF_ATTEMPT = "calendar.oauth_csrf_attempt"
 
 
 @dataclass(frozen=True, slots=True)

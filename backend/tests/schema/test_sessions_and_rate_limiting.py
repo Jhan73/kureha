@@ -146,7 +146,17 @@ async def test_rate_counter_cleanup_deletes_only_rows_older_than_24h(db_conn) ->
         sa.text("DELETE FROM rate_counters WHERE window_start < now() - interval '24 hours'")
     )
 
+    # Scoped to the two subjects this test itself inserted -- an unscoped
+    # `SELECT * FROM rate_counters` would also see any OTHER committed row
+    # (e.g. `tests/platform/inbound/api/routers`'s router tests commit a real
+    # 'testclient' row via the app's own rate-limit middleware) and make this
+    # assertion depend on that other package's cleanup having already run,
+    # which currently only holds due to pytest's alphabetical file-discovery
+    # order -- not guaranteed under `pytest-randomly`/`pytest-xdist`/a partial
+    # test-path run.
     remaining = (
-        await db_conn.execute(sa.text("SELECT subject FROM rate_counters ORDER BY subject"))
+        await db_conn.execute(
+            sa.text("SELECT subject FROM rate_counters WHERE subject IN ('stale', 'fresh') ORDER BY subject")
+        )
     ).all()
     assert [row.subject for row in remaining] == ["fresh"]

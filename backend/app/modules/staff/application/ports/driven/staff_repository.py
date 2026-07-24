@@ -34,6 +34,18 @@ class StaffRepositoryPort(Protocol):
         codebase)."""
         ...
 
+    async def find_by_professional_id(self, tenant_id: str, professional_id: str) -> StaffMember | None:
+        """Tenant-scoped lookup by `professional_id` (added tasks.md task
+        10.2): the composition root's real `StaffStatusPort` adapter
+        (`scheduling.application.ports.driven.staff_status_port`) only ever
+        has a bare `professional_id` -- never a `staff_members.id` -- when
+        `ScheduleAppointment`/`RescheduleAppointment` check assignability
+        (tasks.md task 8.4). Returns `None` both when no `staff_members` row
+        references this professional at all, and when the row is invisible
+        under RLS -- same "deny-by-default, indistinguishable by design"
+        posture as `get_staff_member`."""
+        ...
+
     async def deactivate_staff_member(self, tenant_id: str, staff_member_id: str) -> StaffMember:
         """Sets `status='inactive'` and `deactivated_at=now()` -- never
         deletes the row (design.md §6's "baja no borra historia")."""

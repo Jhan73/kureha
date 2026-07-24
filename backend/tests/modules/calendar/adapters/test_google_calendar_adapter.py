@@ -17,6 +17,7 @@ import pytest
 from app.modules.calendar.adapters.outbound.calendar.google_calendar_adapter import GoogleCalendarAdapter
 from app.modules.calendar.domain.calendar_credential import CalendarCredential
 from app.modules.calendar.domain.calendar_event_mapping import CalendarEventMapping
+from app.modules.calendar.domain.errors import CalendarOAuthExchangeError
 from datetime import datetime, timezone
 
 _CLIENT_ID = "test-client-id"
@@ -180,3 +181,42 @@ def test_verify_oauth_state_rejects_a_tampered_or_missing_state() -> None:
         GoogleCalendarAdapter.verify_oauth_state(user_id="u1", nonce="n1", server_secret="s3cr3t", received_state="")
         is False
     )
+
+
+async def test_exchange_authorization_code_returns_refresh_token_and_email() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "oauth2.googleapis.com":
+            assert "code=auth-code-1" in request.content.decode()
+            assert "grant_type=authorization_code" in request.content.decode()
+            return httpx.Response(
+                200, json={"access_token": "google-access-token", "refresh_token": "google-refresh-token", "scope": "calendar.events"}
+            )
+        assert request.url.path == "/oauth2/v3/userinfo"
+        assert request.headers["Authorization"] == "Bearer google-access-token"
+        return httpx.Response(200, json={"email": "patient@example.com"})
+
+    result = await _adapter(handler).exchange_authorization_code(
+        "auth-code-1", redirect_uri="https://kureha.example/calendar/oauth/callback"
+    )
+
+    assert result.refresh_token == "google-refresh-token"
+    assert result.google_email == "patient@example.com"
+    assert result.scope == "calendar.events"
+
+
+async def test_exchange_authorization_code_raises_on_a_rejected_code() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(400, json={"error": "invalid_grant"})
+
+    with pytest.raises(CalendarOAuthExchangeError):
+        await _adapter(handler).exchange_authorization_code("bad-code", redirect_uri="https://kureha.example/callback")
+
+
+async def test_exchange_authorization_code_raises_when_refresh_token_is_missing() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "oauth2.googleapis.com":
+            return httpx.Response(200, json={"access_token": "google-access-token"})
+        return httpx.Response(200, json={"email": "patient@example.com"})
+
+    with pytest.raises(CalendarOAuthExchangeError):
+        await _adapter(handler).exchange_authorization_code("auth-code-1", redirect_uri="https://kureha.example/callback")

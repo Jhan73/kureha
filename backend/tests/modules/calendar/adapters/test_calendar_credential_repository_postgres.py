@@ -88,3 +88,25 @@ async def test_reconnecting_after_revoke_clears_revoked_at(rls_conn) -> None:
 
     assert fetched.is_revoked is False
     assert fetched.secret.ciphertext == b"fresh"
+
+
+async def test_revoke_also_erases_the_encrypted_token_columns(rls_conn) -> None:
+    """Task 10.4 (kureha-mvp PR9 verify finding): design.md §7.3 -- "En
+    rollback/desactivacion: revoked_at + borrado del token cifrado" -- and
+    the port's own docstring -- "Sets revoked_at and clears the encrypted
+    token" -- both require `revoke()` to erase the ciphertext, not just flip
+    `revoked_at`. Before this fix, `revoke()` only set `revoked_at`, leaving
+    `encrypted_refresh_token`/`nonce`/`wrapped_dek` fully intact and
+    recoverable in the same row."""
+    tenant_id, patient_id = await _seed_patient(rls_conn)
+    await set_app_context(rls_conn, tenant_id=tenant_id, role="patient", patient_id=patient_id)
+    repository = PostgresCalendarCredentialRepository(rls_conn)
+    await repository.save(tenant_id, patient_id, _secret(), scope="calendar.events")
+
+    await repository.revoke(tenant_id, patient_id)
+    fetched = await repository.get(tenant_id, patient_id)
+
+    assert fetched.is_revoked is True
+    assert fetched.secret.ciphertext == b""
+    assert fetched.secret.nonce == b""
+    assert fetched.secret.wrapped_dek == b""

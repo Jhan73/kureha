@@ -68,9 +68,18 @@ class PostgresCalendarCredentialRepository:
         return self._row_to_record(row)
 
     async def revoke(self, tenant_id: str, patient_id: str) -> None:
+        # Task 10.4 fix (kureha-mvp PR9 verify finding): design.md §7.3 --
+        # "En rollback/desactivacion: revoked_at + borrado del token cifrado"
+        # -- and this port's own docstring both require the ciphertext
+        # itself to be erased, not just `revoked_at` flipped. The three
+        # `bytea` columns are `NOT NULL` (migration 00d985a7bfa5), so
+        # "borrado" means zero-length bytes here, not `NULL` -- a
+        # subsequent `save()` (reconnect) overwrites them with a fresh
+        # secret regardless, same as it already clears `revoked_at`.
         await self._conn.execute(
             text(
-                "UPDATE calendar_credentials SET revoked_at = now() "
+                "UPDATE calendar_credentials SET revoked_at = now(), "
+                "encrypted_refresh_token = '', nonce = '', wrapped_dek = '' "
                 "WHERE tenant_id = :tenant_id AND patient_id = :patient_id"
             ),
             {"tenant_id": tenant_id, "patient_id": patient_id},
