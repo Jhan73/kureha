@@ -101,6 +101,15 @@ class Settings(BaseSettings):
     chat_rate_limit_capacity: int = 5
     chat_rate_limit_refill_per_second: float = 0.5
 
+    # Frontend origin(s) allowed to call this API cross-origin (design.md
+    # §20: the frontend is a separately-deployed static SPA, never same-origin
+    # with the backend) -- comma-separated, no wildcard (browsers reject
+    # `Access-Control-Allow-Origin: *` alongside credentialed requests, and a
+    # wildcard would also defeat the point of an allowlist). Dev default
+    # covers `next dev`'s own port; production MUST override with the real
+    # CloudFront/S3 origin (design.md §20, not yet provisioned).
+    cors_allowed_origins: str = "http://localhost:3000"
+
 
 @lru_cache
 def get_settings() -> Settings:
