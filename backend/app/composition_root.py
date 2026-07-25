@@ -37,6 +37,30 @@ staff use cases had NO composition-root wiring anywhere before this batch
 task's own instruction) -- `persist_and_audit`'s (graph/nodes/
 persist_and_audit.py) dispatch table is their first real caller.
 
+**Session 4 (tasks.md task 12.3/12.2's adapter half/12.7, PR 12 batch 1):**
+`build_scope_policy`/`build_intent_classifier`/`build_affirmation_classifier`
+-- the first three of `GraphDependencies`' seven `Unwired*`-defaulted LLM
+seam ports (`build_graph.py`) to get a real, Anthropic-backed adapter. All
+three accept an optional pre-built `ChatAnthropic` so a single caller
+(`chat.py`'s `get_graph_dependencies`) can share ONE fast-tier model across
+all three rather than each opening its own HTTP client. `SchedulingPlannerPort`/
+`ReminderPlannerPort`/`StaffPlannerPort`/`DirectResponsePort`/
+`SuggestionGeneratorPort` remain `Unwired*` -- batch 2's job.
+
+**Session 5 (tasks.md tasks 12.5/12.6/12.7, PR 12 batch 2):**
+`build_scheduling_planner`/`build_staff_planner` (reasoner tier),
+`build_reminder_planner`/`build_direct_response`/`build_suggestion_generator`
+(fast tier) -- the remaining five LLM seam ports `GraphDependencies` still
+defaulted to `Unwired*`. Same optional-pre-built-`ChatAnthropic` convention
+as Session 4's three builders, so `chat.py`'s `get_graph_dependencies` can
+share ONE reasoner-tier model across the two reasoner adapters and ONE
+fast-tier model across the three fast adapters (two `ChatAnthropic`
+instances total for a request that needs every seam, not seven). Every
+`GraphDependencies` field is now wired to a real adapter by default -- see
+`AnthropicSchedulingPlanner`'s own module docstring for the genuine,
+UNRESOLVED "LLM cannot invent a real database id from conversational text"
+gap this batch does NOT close (flagged there at length, not here).
+
 The original four gaps this module closed in task 10.2's first session:
 
 1. **`runtime_engine`, never `engine`, for request-scoped work**
@@ -82,6 +106,7 @@ from datetime import timedelta
 
 import httpx
 import psycopg
+from langchain_anthropic import ChatAnthropic
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
@@ -113,6 +138,8 @@ from app.modules.governance.rbac.adapters.outbound.rbac.default_role_permissions
 )
 from app.modules.governance.rbac.adapters.outbound.rbac.permission_service import PermissionService
 from app.modules.governance.rbac.application.use_cases.authorize_action import AuthorizeAction
+from app.modules.governance.scope.adapters.outbound.anthropic.anthropic_scope_policy import AnthropicScopePolicy
+from app.modules.governance.scope.domain.scope_policy import ClinicalScopePolicy
 from app.modules.identity.adapters.outbound.auth.supabase_auth_adapter import SupabaseAuthAdapter
 from app.modules.identity.adapters.outbound.postgres.session_store import PostgresSessionStore
 from app.modules.identity.adapters.outbound.postgres.user_directory import PostgresUserDirectory
@@ -137,8 +164,29 @@ from app.modules.staff.application.use_cases.deactivate_staff import DeactivateS
 from app.modules.staff.application.use_cases.edit_shift import EditShift
 from app.modules.staff.application.use_cases.register_staff import RegisterStaff
 from app.modules.staff.domain.staff_policy import StaffPolicy
+from app.modules.tenancy.adapters.outbound.postgres.tenant_repository import PostgresTenantRepository
+from app.modules.tenancy.application.use_cases.get_tenant import GetTenant
 from app.platform.inbound.api.access_control.role_scope import scoped_as_patient
 from app.platform.inbound.api.access_control.runtime_session import EngineRuntimeSession
+from app.platform.inbound.api.rate_limit.adapters.postgres_rate_counter_store import PostgresRateCounterStore
+from app.platform.inbound.api.rate_limit.chat_rate_limiter import ChatRateLimiter
+from app.platform.inbound.api.rate_limit.llm_budget_guard import LlmBudgetGuard
+from app.platform.inbound.api.rate_limit.token_bucket import TokenBucketRegistry
+from app.platform.inbound.graph.adapters.anthropic_affirmation_classifier import AnthropicAffirmationClassifier
+from app.platform.inbound.graph.adapters.anthropic_direct_response import AnthropicDirectResponse
+from app.platform.inbound.graph.adapters.anthropic_intent_classifier import AnthropicIntentClassifier
+from app.platform.inbound.graph.adapters.anthropic_reminder_planner import AnthropicReminderPlanner
+from app.platform.inbound.graph.adapters.anthropic_scheduling_planner import AnthropicSchedulingPlanner
+from app.platform.inbound.graph.adapters.anthropic_staff_planner import AnthropicStaffPlanner
+from app.platform.inbound.graph.adapters.anthropic_suggestion_generator import AnthropicSuggestionGenerator
+from app.platform.inbound.graph.adapters.llm import build_chat_model
+from app.platform.inbound.graph.ports.affirmation_classifier import AffirmationClassifierPort
+from app.platform.inbound.graph.ports.direct_response import DirectResponsePort
+from app.platform.inbound.graph.ports.intent_classifier import IntentClassifierPort
+from app.platform.inbound.graph.ports.reminder_planner import ReminderPlannerPort
+from app.platform.inbound.graph.ports.scheduling_planner import SchedulingPlannerPort
+from app.platform.inbound.graph.ports.staff_planner import StaffPlannerPort
+from app.platform.inbound.graph.ports.suggestion_generator import SuggestionGeneratorPort
 from app.platform.outbound.channel.console_channel import ConsoleReminderChannel
 from app.shared_kernel.clock import ClockPort, SystemClock
 
@@ -592,6 +640,120 @@ def build_edit_shift(conn: AsyncConnection) -> EditShift:
     return EditShift(build_authorize_action(conn), PostgresShiftRepository(conn), PostgresAuditLog(conn))
 
 
+def build_scope_policy(llm: ChatAnthropic | None = None) -> ClinicalScopePolicy:
+    """Resolves tasks.md task 12.3's real `ClinicalScopePolicy` seam --
+    `AnthropicScopePolicy` on the fast/small tier (design.md §8.10). `llm`
+    is optional so callers wiring multiple fast-tier adapters for the same
+    request (`get_graph_dependencies`, `platform/inbound/api/routers/
+    chat.py`) can share ONE `ChatAnthropic` instance rather than each
+    builder constructing its own; defaults to a fresh
+    `build_chat_model("fast")` when omitted."""
+    return AnthropicScopePolicy(llm or build_chat_model("fast"))
+
+
+def build_intent_classifier(llm: ChatAnthropic | None = None) -> IntentClassifierPort:
+    # Same shared-`llm` convention as `build_scope_policy` above.
+    return AnthropicIntentClassifier(llm or build_chat_model("fast"))
+
+
+def build_affirmation_classifier(llm: ChatAnthropic | None = None) -> AffirmationClassifierPort:
+    # Same shared-`llm` convention as `build_scope_policy` above.
+    return AnthropicAffirmationClassifier(llm or build_chat_model("fast"))
+
+
+def build_scheduling_planner(llm: ChatAnthropic | None = None) -> SchedulingPlannerPort:
+    """Resolves `scheduling_agent`'s real `SchedulingPlannerPort` seam
+    (tasks.md task 12.7, PR 12 batch 2) -- `AnthropicSchedulingPlanner` on
+    the REASONER tier (design.md §8.10: "Planificacion multi-paso"), unlike
+    every fast-tier builder above. `llm` optional, same shared-instance
+    convention -- see `AnthropicSchedulingPlanner`'s own module docstring for
+    the genuine, unresolved ID-resolution gap this adapter does not close."""
+    return AnthropicSchedulingPlanner(llm or build_chat_model("reasoner"))
+
+
+def build_staff_planner(llm: ChatAnthropic | None = None) -> StaffPlannerPort:
+    # Reasoner tier (design.md §8.10) -- same shared-`llm` convention as `build_scope_policy` above.
+    return AnthropicStaffPlanner(llm or build_chat_model("reasoner"))
+
+
+def build_reminder_planner(llm: ChatAnthropic | None = None) -> ReminderPlannerPort:
+    return AnthropicReminderPlanner(llm or build_chat_model("fast"))
+
+
+def build_direct_response(llm: ChatAnthropic | None = None) -> DirectResponsePort:
+    return AnthropicDirectResponse(llm or build_chat_model("fast"))
+
+
+def build_suggestion_generator(llm: ChatAnthropic | None = None) -> SuggestionGeneratorPort:
+    return AnthropicSuggestionGenerator(llm or build_chat_model("fast"))
+
+
+def build_get_tenant(conn: AsyncConnection) -> GetTenant:
+    """`conn` MUST be an `open_runtime_connection()`-equivalent connection
+    (`tenants` has no RLS, migration 613f9ea3526f, so either engine is
+    technically safe -- callers pass their own already-open per-request
+    `conn`, matching every other `build_*` use-case factory here). Resolves
+    `tenants.llm_daily_budget_tokens` (design.md §19) for `/chat`/`/chat/
+    stream`'s rate-limiting call, tasks.md task 12.1."""
+    return GetTenant(PostgresTenantRepository(conn))
+
+
+class _ElevatedRateCounterStore:
+    """`RateCounterStorePort` impl opening its own `open_elevated_
+    connection()` per call -- `rate_counters` has no RLS (design.md §4.4),
+    touched via `app.db.engine` (elevated), same convention `Postgres
+    RateCounterStore`'s own docstring establishes for the pre-login auth
+    throttle. A DELIBERATE near-duplicate of `app/main.py`'s own private
+    `_ElevatedRateCounterStore` (that module's docstring frames its copy as
+    middleware-specific glue, not reusable) -- `composition_root.py` cannot
+    import from `app/main.py` (the dependency direction is the other way:
+    `main.py` imports FROM this module), so this is a second, small copy
+    rather than inverting that direction."""
+
+    async def increment(self, *, dimension, subject, window_start, by=1, tenant_id=None) -> int:
+        async with open_elevated_connection() as conn:
+            return await PostgresRateCounterStore(conn).increment(
+                dimension=dimension, subject=subject, window_start=window_start, by=by, tenant_id=tenant_id
+            )
+
+    async def peek(self, *, dimension, subject, window_start, tenant_id=None) -> int:
+        async with open_elevated_connection() as conn:
+            return await PostgresRateCounterStore(conn).peek(
+                dimension=dimension, subject=subject, window_start=window_start, tenant_id=tenant_id
+            )
+
+
+# Process-wide singleton, deliberately NOT constructed per-request -- same
+# reasoning as `_rotation_replay_cache` above: a token bucket's entire
+# purpose (design.md §19: "token-bucket per-instance") requires the SAME
+# bucket to be consulted/consumed across every request from the same
+# tenant+patient on this process, not a fresh, always-full bucket each call.
+_chat_token_buckets = TokenBucketRegistry(
+    capacity=settings.chat_rate_limit_capacity,
+    refill_per_second=settings.chat_rate_limit_refill_per_second,
+    clock=SystemClock(),
+)
+
+
+def build_chat_rate_limiter(conn: AsyncConnection) -> ChatRateLimiter:
+    """Resolves tasks.md task 12.1's rate-limiter/budget wiring --
+    `ChatRateLimiter` (design.md §19 layer 3) combining the process-wide
+    token-bucket registry above with `LlmBudgetGuard`. `conn` MUST be an
+    `open_runtime_connection()`-equivalent connection with the caller's
+    `app.*` GUCs already set -- used ONLY for `LlmBudgetGuard`'s
+    `llm.budget_exceeded` audit write (`audit_logs` has real RLS/hash-chain,
+    the caller's own already-scoped `conn` is the correct connection for it,
+    unlike the counter itself). The daily-budget COUNTER read/write goes
+    through its own always-elevated connection per call
+    (`_ElevatedRateCounterStore` above) -- `rate_counters` has no RLS, same
+    convention every other rate-limiting dimension in this codebase already
+    uses."""
+    return ChatRateLimiter(
+        _chat_token_buckets,
+        LlmBudgetGuard(_ElevatedRateCounterStore(), clock=SystemClock(), record_audit=PostgresAuditLog(conn)),
+    )
+
+
 __all__ = [
     "AppointmentSnapshotPort",
     "PostgresAppointmentSnapshotAdapter",
@@ -601,22 +763,32 @@ __all__ = [
     "bootstrap_rbac_catalog_and_grants",
     "build_access_token_issuer",
     "build_access_token_verifier",
+    "build_affirmation_classifier",
     "build_authorize_action",
     "build_cancel_appointment",
+    "build_chat_rate_limiter",
     "build_connect_patient_calendar",
     "build_create_shift",
     "build_deactivate_staff",
+    "build_direct_response",
     "build_edit_shift",
+    "build_get_tenant",
     "build_google_calendar_adapter",
+    "build_intent_classifier",
     "build_login",
     "build_register_staff",
     "build_logout",
     "build_permission_service",
     "build_refresh_token",
+    "build_reminder_planner",
     "build_reschedule_appointment",
     "build_runtime_session",
     "build_schedule_appointment",
+    "build_scheduling_planner",
+    "build_scope_policy",
     "build_send_reminder",
+    "build_staff_planner",
+    "build_suggestion_generator",
     "build_sync_appointment_to_calendar",
     "open_checkpointer_connection",
     "open_elevated_connection",

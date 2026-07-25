@@ -64,6 +64,7 @@ from app.modules.calendar.application.ports.driven.calendar_sync import Calendar
 from app.modules.calendar.application.ports.driven.credential_vault import CredentialVaultPort
 from app.modules.calendar.domain.calendar_sync_record import CalendarSyncStatus
 from app.platform.inbound.graph.state import KurehaState
+from app.platform.inbound.graph.streaming.status_writer import emit_status
 
 _STAFF_ROLES = frozenset({"reception", "professional", "admin"})
 
@@ -96,6 +97,11 @@ def make_calendar_sync_node(
         if snapshot is None:
             return {"calendar_sync_status": "failed"}
 
+        # `action=None` -- calendar sync is an administrative post-commit
+        # step (design.md §7.2), not itself an RBAC-gated action a caller
+        # either has or lacks -- always emitted once a sync is genuinely
+        # attempted (the two early-return branches above never reach here).
+        emit_status(phase="syncing_calendar", label="Sincronizando con Google Calendar")
         use_case = factory(
             conn, base_role=ctx.role, calendar_sync_port=calendar_sync_port, credential_vault=credential_vault
         )

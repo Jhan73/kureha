@@ -25,11 +25,30 @@ from app.composition_root import (
     PostgresAppointmentSnapshotAdapter,
     PostgresStaffStatusAdapter,
     bootstrap_rbac_catalog_and_grants,
+    build_affirmation_classifier,
+    build_chat_rate_limiter,
     build_create_shift,
+    build_direct_response,
+    build_get_tenant,
+    build_intent_classifier,
     build_permission_service,
     build_register_staff,
+    build_reminder_planner,
+    build_scheduling_planner,
+    build_scope_policy,
+    build_staff_planner,
+    build_suggestion_generator,
     build_sync_appointment_to_calendar,
 )
+from app.modules.governance.scope.adapters.outbound.anthropic.anthropic_scope_policy import AnthropicScopePolicy
+from app.platform.inbound.graph.adapters.anthropic_affirmation_classifier import AnthropicAffirmationClassifier
+from app.platform.inbound.graph.adapters.anthropic_direct_response import AnthropicDirectResponse
+from app.platform.inbound.graph.adapters.anthropic_intent_classifier import AnthropicIntentClassifier
+from app.platform.inbound.graph.adapters.anthropic_reminder_planner import AnthropicReminderPlanner
+from app.platform.inbound.graph.adapters.anthropic_scheduling_planner import AnthropicSchedulingPlanner
+from app.platform.inbound.graph.adapters.anthropic_staff_planner import AnthropicStaffPlanner
+from app.platform.inbound.graph.adapters.anthropic_suggestion_generator import AnthropicSuggestionGenerator
+from app.platform.inbound.graph.adapters.llm import build_chat_model
 from app.modules.staff.domain.staff_member import OperationalRole
 from app.modules.calendar.adapters.outbound.postgres.calendar_credential_repository import (
     PostgresCalendarCredentialRepository,
@@ -354,3 +373,124 @@ async def test_bootstrap_rbac_catalog_and_grants_is_idempotent(rls_conn) -> None
         )
     ).scalar_one()
     assert granted_count == sum(len(actions) for actions in DEFAULT_DEV_ROLE_PERMISSIONS.values())
+
+
+# tasks.md task 12.3/task 12.2's adapter half (PR 12 batch 1): the three real,
+# Anthropic-backed LLM seam adapters wired into `GraphDependencies` by
+# `platform/inbound/api/routers/chat.py`'s `get_graph_dependencies`. No
+# `rls_conn`/Postgres needed here -- constructing `ChatAnthropic` never
+# itself calls the Anthropic API (see `adapters/llm.py`'s own docstring),
+# so these are pure wiring/construction tests, not integration tests.
+
+
+def test_build_scope_policy_returns_a_real_anthropic_backed_adapter() -> None:
+    policy = build_scope_policy()
+
+    assert isinstance(policy, AnthropicScopePolicy)
+
+
+def test_build_intent_classifier_returns_a_real_anthropic_backed_adapter() -> None:
+    classifier = build_intent_classifier()
+
+    assert isinstance(classifier, AnthropicIntentClassifier)
+
+
+def test_build_affirmation_classifier_returns_a_real_anthropic_backed_adapter() -> None:
+    classifier = build_affirmation_classifier()
+
+    assert isinstance(classifier, AnthropicAffirmationClassifier)
+
+
+def test_the_three_llm_seam_builders_accept_a_shared_pre_built_chat_model() -> None:
+    """`get_graph_dependencies` (chat.py) builds ONE fast-tier `ChatAnthropic`
+    and shares it across all three adapters for this batch (one HTTP client,
+    not three) -- proven by passing an already-built model through without
+    any of the three builders raising or building a second one internally."""
+    fast_llm = build_chat_model("fast")
+
+    assert isinstance(build_scope_policy(fast_llm), AnthropicScopePolicy)
+    assert isinstance(build_intent_classifier(fast_llm), AnthropicIntentClassifier)
+    assert isinstance(build_affirmation_classifier(fast_llm), AnthropicAffirmationClassifier)
+
+
+def test_build_scheduling_planner_returns_a_real_anthropic_backed_adapter() -> None:
+    planner = build_scheduling_planner()
+
+    assert isinstance(planner, AnthropicSchedulingPlanner)
+
+
+def test_build_staff_planner_returns_a_real_anthropic_backed_adapter() -> None:
+    planner = build_staff_planner()
+
+    assert isinstance(planner, AnthropicStaffPlanner)
+
+
+def test_build_reminder_planner_returns_a_real_anthropic_backed_adapter() -> None:
+    planner = build_reminder_planner()
+
+    assert isinstance(planner, AnthropicReminderPlanner)
+
+
+def test_build_direct_response_returns_a_real_anthropic_backed_adapter() -> None:
+    adapter = build_direct_response()
+
+    assert isinstance(adapter, AnthropicDirectResponse)
+
+
+def test_build_suggestion_generator_returns_a_real_anthropic_backed_adapter() -> None:
+    generator = build_suggestion_generator()
+
+    assert isinstance(generator, AnthropicSuggestionGenerator)
+
+
+def test_scheduling_and_staff_planner_builders_accept_a_shared_reasoner_model() -> None:
+    """`get_graph_dependencies` shares ONE reasoner-tier `ChatAnthropic`
+    across both reasoner-tier adapters (design.md §8.10), same convention as
+    the fast-tier seams above."""
+    reasoner_llm = build_chat_model("reasoner")
+
+    assert isinstance(build_scheduling_planner(reasoner_llm), AnthropicSchedulingPlanner)
+    assert isinstance(build_staff_planner(reasoner_llm), AnthropicStaffPlanner)
+
+
+def test_the_three_new_fast_tier_builders_accept_a_shared_pre_built_chat_model() -> None:
+    fast_llm = build_chat_model("fast")
+
+    assert isinstance(build_reminder_planner(fast_llm), AnthropicReminderPlanner)
+    assert isinstance(build_direct_response(fast_llm), AnthropicDirectResponse)
+    assert isinstance(build_suggestion_generator(fast_llm), AnthropicSuggestionGenerator)
+
+
+# ---------------------------------------------------------------------------
+# PR 12 batch 3 (tasks.md task 12.1's rate-limiter/budget wiring):
+# `build_get_tenant`/`build_chat_rate_limiter`.
+# ---------------------------------------------------------------------------
+
+
+async def test_build_get_tenant_reads_the_real_llm_daily_budget_column(rls_conn) -> None:
+    tenant_id = await seed_tenant(rls_conn)
+
+    tenant = await build_get_tenant(rls_conn).execute(tenant_id)
+
+    assert tenant.id == tenant_id
+    assert tenant.llm_daily_budget_tokens == 100_000  # DDL default, migration 7441c553c450
+
+
+def test_build_chat_rate_limiter_returns_a_real_chat_rate_limiter(rls_conn) -> None:
+    from app.platform.inbound.api.rate_limit.chat_rate_limiter import ChatRateLimiter
+
+    limiter = build_chat_rate_limiter(rls_conn)
+
+    assert isinstance(limiter, ChatRateLimiter)
+
+
+def test_build_chat_rate_limiter_shares_the_same_process_wide_token_bucket_registry(rls_conn) -> None:
+    """The token-bucket registry MUST be a process-wide singleton (design.md
+    §19: "token-bucket per-instance") -- a fresh registry per call would
+    reset every caller's cadence limit on each request, defeating the whole
+    mechanism. Proven by constructing the limiter twice and checking both
+    share the exact same underlying registry instance."""
+    first = build_chat_rate_limiter(rls_conn)
+    second = build_chat_rate_limiter(rls_conn)
+
+    assert first._token_buckets is second._token_buckets

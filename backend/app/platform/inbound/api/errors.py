@@ -29,18 +29,25 @@ needed -- while still letting a MORE SPECIFIC subclass (e.g.
 mapping with its own `error_code`/message/status when one is registered,
 since Python's MRO always lists the subclass before its ancestor.
 
-**Only 4 of design.md §21.1's 6 categories have real exception types to map
-today** (`auth`, `validation`, `rate-limited`, plus the unmapped-exception
-fallback under a `internal` category §21.1 does not explicitly name but
-§21.2 requires: "una excepcion no mapeada cae a un `internal_error`/`500`
-generico"). `calendar-sync-degraded` is communicated as a success-path
-status, never raised as an exception (design.md §7.2: "no bloqueante...
-aviso adjunto al resultado exitoso"), so it never reaches this handler by
-construction. `hitl-pending`/`clinical-scope-refused` belong to the
-LangGraph/HITL/scope-guardrail flows (tasks.md Phase 11/12/13, not built
-yet) -- flagged here, not silently invented: whoever builds those phases
-registers their exception types into `_MAPPINGS` the same way, rather than
-building a second, competing translation layer."""
+**5 of design.md §21.1's 6 categories now have real exception types mapped**
+(`auth`, `validation`, `rate-limited`, `clinical-scope-refused` as of PR 12
+batch 3, plus the unmapped-exception fallback under a `internal` category
+§21.1 does not explicitly name but §21.2 requires: "una excepcion no mapeada
+cae a un `internal_error`/`500` generico"). `calendar-sync-degraded` is
+communicated as a success-path status, never raised as an exception
+(design.md §7.2: "no bloqueante... aviso adjunto al resultado exitoso"), so
+it never reaches this handler by construction -- the only category that
+will never have a `_MAPPINGS` entry. `hitl-pending` still has no mapped
+exception (tasks.md Phase 13, not built yet) -- flagged here, not silently
+invented: whoever builds that surface registers its exception type into
+`_MAPPINGS` the same way, rather than building a second, competing
+translation layer. `ResponseGuardStreamRefusal` (`graph/streaming/
+response_guard_stream.py`, tasks.md task 12.4) is `clinical-scope-refused`'s
+first real caller -- raised by the SSE-layer sentence-boundary guard when a
+streamed unit classifies as unsafe, resolved to this SAME envelope via
+`resolve_error()` (see that function's own docstring for why `/chat/
+stream`'s SSE `error` event cannot go through FastAPI's own exception
+handler dispatch)."""
 
 import logging
 import uuid
@@ -61,6 +68,7 @@ from app.modules.identity.domain.errors import (
     UnmappedIdentityError,
 )
 from app.platform.inbound.api.rate_limit.errors import LlmBudgetExceededError, RateLimitExceededError
+from app.platform.inbound.graph.streaming.response_guard_stream import ResponseGuardStreamRefusal
 from app.shared_kernel.errors import ConflictError, NotAuthorizedError, NotFoundError, ValidationError
 
 logger = logging.getLogger(__name__)
@@ -95,6 +103,18 @@ class _ErrorMapping:
     category: str
     user_message: str
     retryable: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class ResolvedError:
+    """`resolve_error`'s return shape: the wire-ready `ErrorEnvelope` PLUS
+    the HTTP status a JSON-response caller needs (SSE callers ignore
+    `http_status` entirely -- the stream itself is already a 200, per
+    design.md §8.5, the `error` EVENT carries the failure, not the HTTP
+    status line)."""
+
+    envelope: ErrorEnvelope
+    http_status: int
 
 
 _INTERNAL_ERROR_MAPPING = _ErrorMapping(
@@ -145,6 +165,16 @@ _MAPPINGS: dict[type[BaseException], _ErrorMapping] = {
         "Se alcanzo el limite diario de uso del asistente.",
         retryable=False,
     ),
+    # clinical-scope-refused (design.md §21.1: "en chat, el refusal ES la
+    # respuesta" -- surfaced by `/chat/stream`'s SSE `error` event via
+    # `resolve_error`, tasks.md task 12.4's streaming response_guard).
+    ResponseGuardStreamRefusal: _ErrorMapping(
+        200,
+        "clinical_scope_refused",
+        "clinical-scope-refused",
+        "Solo puedo ayudarte con temas administrativos; derivo tu consulta clinica a un profesional.",
+        retryable=False,
+    ),
 }
 
 
@@ -174,7 +204,18 @@ def _respond(mapping: _ErrorMapping, *, correlation_id: str | None = None) -> JS
     return JSONResponse(envelope.to_dict(), status_code=mapping.http_status)
 
 
-async def _handle_exception(request: Request, exc: Exception) -> JSONResponse:
+def resolve_error(exc: BaseException) -> ResolvedError:
+    """Public counterpart to `_handle_exception`'s mapping logic -- the ONE
+    place any translation boundary in this codebase resolves an exception
+    into the §21 envelope shape, not just FastAPI's own registered
+    handlers. `platform/inbound/api/routers/chat.py`'s `/chat/stream` SSE
+    `error` event is the first other caller: an exception raised INSIDE an
+    already-started `StreamingResponse` body iterator happens PAST the
+    point `app.add_exception_handler` can intercept it (the response
+    headers/200 status are already sent), so that endpoint builds its own
+    SSE `error` event from this function's `ResolvedError.envelope`
+    directly, ignoring `.http_status` (see `ResolvedError`'s own
+    docstring)."""
     mapping = _resolve_mapping(exc)
     correlation_id = _new_correlation_id()
     if mapping is None:
@@ -182,7 +223,20 @@ async def _handle_exception(request: Request, exc: Exception) -> JSONResponse:
         # the response body, always tagged with the SAME correlation_id
         # the client receives so it can be found in these logs.
         logger.exception("Unhandled exception (correlation_id=%s)", correlation_id)
-    return _respond(mapping if mapping is not None else _INTERNAL_ERROR_MAPPING, correlation_id=correlation_id)
+        mapping = _INTERNAL_ERROR_MAPPING
+    envelope = ErrorEnvelope(
+        error_code=mapping.error_code,
+        category=mapping.category,
+        user_message=mapping.user_message,
+        retryable=mapping.retryable,
+        correlation_id=correlation_id,
+    )
+    return ResolvedError(envelope=envelope, http_status=mapping.http_status)
+
+
+async def _handle_exception(request: Request, exc: Exception) -> JSONResponse:
+    resolved = resolve_error(exc)
+    return JSONResponse(resolved.envelope.to_dict(), status_code=resolved.http_status)
 
 
 def _resolve_mapping(exc: BaseException) -> _ErrorMapping | None:

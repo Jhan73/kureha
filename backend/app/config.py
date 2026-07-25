@@ -74,6 +74,33 @@ class Settings(BaseSettings):
     # invalidate the other.
     calendar_oauth_state_secret: str = "dev_only_calendar_oauth_state_secret_change_me"
 
+    # LLM provider (design.md §8.10, tasks.md task 12.7). `None` until
+    # configured -- same convention as `supabase_anon_key` above -- so a
+    # local/CI run with no key set can still import/construct every
+    # `ChatAnthropic`-backed adapter (constructing the client does not
+    # itself call the API); only an actual `.ainvoke()` needs a real key.
+    # Tier -> model id is resolved ONLY by
+    # `platform/inbound/graph/adapters/llm.py`'s `build_chat_model()` -- no
+    # node/adapter file may hardcode a model id string (tasks.md task 12.7's
+    # own explicit requirement).
+    anthropic_api_key: str | None = None
+    llm_fast_model: str = "claude-haiku-4-5"
+    llm_reasoner_model: str = "claude-sonnet-5"
+
+    # Patient chat rate limiting (design.md §19 layer 3, tasks.md task
+    # 12.1's rate-limiter/budget wiring): per-instance token-bucket
+    # cadence gate, keyed `tenant+patient` (spec `platform-hardening`,
+    # "Rate Limiting on Patient Chat"). design.md names the MECHANISM
+    # (token-bucket, per-instance) but not concrete capacity/refill
+    # numbers -- these two are an MVP judgment call, tunable per
+    # environment via env vars rather than hardcoded in
+    # `ChatRateLimiter`/`TokenBucketRegistry` themselves (this codebase's
+    # own "never hardcoded" convention, task 12.7's own wording, applied
+    # here too even though design.md itself left the exact values open).
+    # Burst of 5 messages, refilling at 1 every 2s sustained.
+    chat_rate_limit_capacity: int = 5
+    chat_rate_limit_refill_per_second: float = 0.5
+
 
 @lru_cache
 def get_settings() -> Settings:

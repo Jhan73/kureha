@@ -14,7 +14,7 @@ from app.modules.calendar.domain.errors import OAuthStateMismatchError
 from app.modules.governance.rbac.application.use_cases.authorize_action import ActionNotPermittedError
 from app.modules.identity.domain.errors import InvalidCredentialsError, UnmappedIdentityError
 from app.modules.scheduling.domain.errors import AppointmentNotFoundError, SlotUnavailableError
-from app.platform.inbound.api.errors import register_exception_handlers
+from app.platform.inbound.api.errors import register_exception_handlers, resolve_error
 from app.platform.inbound.api.rate_limit.errors import LlmBudgetExceededError, RateLimitExceededError
 from app.shared_kernel.errors import ValidationError
 
@@ -203,3 +203,36 @@ def test_every_response_has_a_unique_correlation_id() -> None:
 
     assert first != second
     assert first.startswith("req_")
+
+
+def test_resolve_error_returns_the_same_envelope_shape_a_mapped_exception_maps_to() -> None:
+    """`resolve_error` (tasks.md task 12.1): the public counterpart to
+    `_handle_exception`'s mapping logic, reusable by ANY translation
+    boundary needing the same §21 envelope shape -- `/chat/stream`'s SSE
+    `error` event is the first other caller (design.md §21: "toda la
+    superficie (API REST + eventos error de SSE, §8.5)"), since an
+    exception raised INSIDE an already-started `StreamingResponse` body
+    iterator never reaches FastAPI's own `add_exception_handler` dispatch."""
+    resolved = resolve_error(RateLimitExceededError("too many"))
+
+    assert resolved.envelope.error_code == "rate_limited"
+    assert resolved.envelope.category == "rate-limited"
+    assert resolved.envelope.retryable is True
+    assert resolved.envelope.correlation_id.startswith("req_")
+    assert resolved.http_status == 429
+
+
+def test_resolve_error_falls_back_to_internal_error_for_an_unmapped_exception() -> None:
+    resolved = resolve_error(RuntimeError("boom"))
+
+    assert resolved.envelope.error_code == "internal_error"
+    assert resolved.envelope.category == "internal"
+    assert resolved.http_status == 500
+    assert "boom" not in resolved.envelope.user_message
+
+
+def test_resolve_error_produces_a_fresh_correlation_id_each_call() -> None:
+    first = resolve_error(RuntimeError("boom"))
+    second = resolve_error(RuntimeError("boom"))
+
+    assert first.envelope.correlation_id != second.envelope.correlation_id

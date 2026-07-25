@@ -64,3 +64,19 @@ async def test_staff_agent_produces_a_low_risk_proposed_action_for_shift_intent(
 
     assert result["risk_level"] == "low"
     assert result["proposed_action"].action == "shift:create"
+
+
+@pytest.mark.asyncio
+async def test_emits_a_status_event_scoped_to_the_planned_action(monkeypatch) -> None:
+    import app.platform.inbound.graph.nodes.staff_agent as module
+
+    calls: list[dict] = []
+    monkeypatch.setattr(module, "emit_status", lambda **kw: calls.append(kw))
+    plan = StaffPlan(action="staff:register", kwargs={"site_id": "s1"}, summary="Register Ana")
+    node = make_staff_agent_node(_FakePlanner(plan=plan))
+
+    await node(_state(intent="staff"))
+
+    assert len(calls) == 1
+    assert calls[0]["action"] == "staff:register"
+    assert calls[0]["allowed_actions"] == ["staff:register", "shift:create"]
