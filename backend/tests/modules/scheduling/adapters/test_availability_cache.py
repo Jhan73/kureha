@@ -84,6 +84,38 @@ async def test_cache_is_bounded_by_maxsize() -> None:
     assert len(cache._cache) <= 2  # noqa: SLF001 -- internal bound check, no public size accessor needed
 
 
+class _TenantTaggedAvailabilityRepository:
+    """Returns a result tagged with `tenant_id` itself, so a cross-tenant
+    cache leak is observable as a WRONG VALUE, not just an extra call --
+    the existing `test_find_available_slots_cache_key_includes_tenant_
+    site_resource_and_date` above only proves the key differs (via call
+    count); this proves the actual tenant-isolation invariant task 13.2
+    asks for: two tenants querying the identical site/resource/date never
+    read each other's cached slots."""
+
+    def __init__(self) -> None:
+        self.find_calls: list[tuple] = []
+
+    async def find_available_slots(self, tenant_id, *, site_id, professional_id, on_date):
+        self.find_calls.append((tenant_id, site_id, professional_id, on_date))
+        return [_slot(f"av-{tenant_id}")]
+
+
+async def test_two_tenants_never_share_a_cache_entry_for_the_same_site_resource_and_date() -> None:
+    inner = _TenantTaggedAvailabilityRepository()
+    cache = CachedAvailabilityRepository(inner)
+
+    tenant_a_first = await cache.find_available_slots("tenant-a", site_id="s1", professional_id="pr1", on_date=_D0)
+    tenant_b_first = await cache.find_available_slots("tenant-b", site_id="s1", professional_id="pr1", on_date=_D0)
+    tenant_a_second = await cache.find_available_slots("tenant-a", site_id="s1", professional_id="pr1", on_date=_D0)
+    tenant_b_second = await cache.find_available_slots("tenant-b", site_id="s1", professional_id="pr1", on_date=_D0)
+
+    assert tenant_a_first != tenant_b_first
+    assert tenant_a_second == tenant_a_first
+    assert tenant_b_second == tenant_b_first
+    assert len(inner.find_calls) == 2  # one live call per tenant; the repeats hit each tenant's OWN cache entry
+
+
 async def test_get_slot_delegates_uncached() -> None:
     inner = _FakeAvailabilityRepository()
     cache = CachedAvailabilityRepository(inner)
