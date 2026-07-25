@@ -183,3 +183,30 @@ async def test_build_scheduling_agent_node_resolves_the_live_threshold_for_appoi
 
     assert result["risk_level"] == "high"  # 2 > live threshold of 1, not the DDL default of 3
     assert action_risk.checked_actions == ["appointment:cancel"]
+
+
+@pytest.mark.asyncio
+async def test_emits_a_status_event_scoped_to_the_planned_action(monkeypatch) -> None:
+    """Task 12.2 (design.md §8.5/§8.7): status events are scoped to
+    `allowed_actions` -- emitted once the planner's `action` is known,
+    checked against `state.allowed_actions` (already resolved by
+    `resolve_toolset`, upstream of this node per `build_graph.py`'s own
+    edges)."""
+    import app.platform.inbound.graph.nodes.scheduling_agent as module
+
+    calls: list[dict] = []
+    monkeypatch.setattr(module, "emit_status", lambda **kw: calls.append(kw))
+    plan = SchedulingPlan(
+        action="appointment:create",
+        kwargs={"patient_id": "p1"},
+        summary="Schedule with Dr. X",
+    )
+    node = make_scheduling_agent_node(_FakePlanner(plan=plan))
+
+    await node(_state(intent="schedule"))
+
+    assert len(calls) == 1
+    assert calls[0]["action"] == "appointment:create"
+    assert calls[0]["allowed_actions"] == ["appointment:create", "appointment:reschedule", "appointment:cancel"]
+    assert calls[0]["phase"]
+    assert calls[0]["label"]

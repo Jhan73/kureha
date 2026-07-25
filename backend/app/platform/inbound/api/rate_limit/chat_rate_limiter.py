@@ -20,6 +20,7 @@ class _TokenBucketsPort(Protocol):
 
 class _LlmBudgetGuardPort(Protocol):
     async def check(self, *, tenant_id: str, daily_budget_tokens: int) -> None: ...
+    async def record_usage(self, *, tenant_id: str, tokens_used: int) -> int: ...
 
 
 class ChatRateLimiter:
@@ -33,3 +34,8 @@ class ChatRateLimiter:
             raise RateLimitExceededError(f"chat cadence rate limit exceeded for {key}")
 
         await self._llm_budget_guard.check(tenant_id=tenant_id, daily_budget_tokens=daily_budget_tokens)
+
+    async def record_usage(self, *, tenant_id: str, tokens_used: int) -> int:
+        """The turn-end counterpart to `enforce` -- design.md §19: "al
+        finalizar el turno, el middleware suma los tokens usados"."""
+        return await self._llm_budget_guard.record_usage(tenant_id=tenant_id, tokens_used=tokens_used)

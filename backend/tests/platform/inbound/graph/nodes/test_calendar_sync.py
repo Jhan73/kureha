@@ -89,6 +89,30 @@ async def test_syncs_successfully_for_a_staff_actor_after_schedule() -> None:
 
 
 @pytest.mark.asyncio
+async def test_emits_an_ungated_status_event_when_a_sync_is_attempted(monkeypatch) -> None:
+    """`action=None` -- calendar sync is an administrative post-commit
+    step, not itself an RBAC-gated action a caller either has or lacks."""
+    import app.platform.inbound.graph.nodes.calendar_sync as module
+
+    calls: list[dict] = []
+    monkeypatch.setattr(module, "emit_status", lambda **kw: calls.append(kw))
+    snapshot = AppointmentSyncSnapshot(
+        patient_id="p1", starts_at=datetime.now(timezone.utc), ends_at=datetime.now(timezone.utc), site_id="s1"
+    )
+    reader = _FakeAppointmentSnapshotReader(snapshot=snapshot)
+    sync_use_case = _FakeSyncUseCase(record=_record(CalendarSyncStatus.OK))
+    node = make_calendar_sync_node(
+        object(), appointment_snapshot=reader, sync_use_case_factory=lambda conn, **kw: sync_use_case
+    )
+    state = _state(intent="schedule", role="reception", outcome=ActionOutcome(success=True, result_id="appt-1"))
+
+    await node(state)
+
+    assert len(calls) == 1
+    assert calls[0].get("action") is None
+
+
+@pytest.mark.asyncio
 async def test_sync_failure_never_raises_and_reports_failed_status() -> None:
     snapshot = AppointmentSyncSnapshot(
         patient_id="p1", starts_at=datetime.now(timezone.utc), ends_at=datetime.now(timezone.utc), site_id="s1"

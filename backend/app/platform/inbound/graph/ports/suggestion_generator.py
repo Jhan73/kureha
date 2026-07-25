@@ -30,11 +30,22 @@ class SuggestionCandidate:
 @dataclass(frozen=True, slots=True)
 class SuggestionContext:
     """What `respond` (tasks.md task 11.5) already knows about the turn,
-    handed to the generator as-is -- no re-derivation inside the port."""
+    handed to the generator as-is -- no re-derivation inside the port.
+
+    `proposed_action_summary` (PR 12 batch 2, tasks.md task 12.6): the
+    just-completed action's own `summary` text (e.g. "Agenda una cita el
+    martes 10:00 con la Dra. Vega"), when one exists -- design.md §8.11.2's
+    own examples are contextual to the JUST-COMPLETED outcome ("¿Agregar un
+    recordatorio para ESTA cita?"), which a bare `intent`/`outcome_success`
+    pair cannot express on its own (there is no other field on this
+    dataclass naming WHICH appointment/professional/date the suggestion
+    should reference). `None` when no `proposed_action` exists for this turn
+    (e.g. an `unknown`/`greeting`/`capability_query` intent)."""
 
     intent: str | None
     allowed_actions: list[str] = field(default_factory=list)
     outcome_success: bool | None = None
+    proposed_action_summary: str | None = None
 
 
 class SuggestionGeneratorPort(Protocol):

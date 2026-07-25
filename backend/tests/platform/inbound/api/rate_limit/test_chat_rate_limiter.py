@@ -24,11 +24,16 @@ class _FakeLlmBudgetGuard:
     def __init__(self, *, raises: Exception | None = None) -> None:
         self._raises = raises
         self.checked: list[tuple[str, int]] = []
+        self.recorded: list[tuple[str, int]] = []
 
     async def check(self, *, tenant_id: str, daily_budget_tokens: int) -> None:
         self.checked.append((tenant_id, daily_budget_tokens))
         if self._raises:
             raise self._raises
+
+    async def record_usage(self, *, tenant_id: str, tokens_used: int) -> int:
+        self.recorded.append((tenant_id, tokens_used))
+        return tokens_used
 
 
 async def test_enforce_passes_when_both_gates_allow() -> None:
@@ -62,3 +67,19 @@ async def test_enforce_propagates_llm_budget_exceeded() -> None:
 
     with pytest.raises(LlmBudgetExceededError):
         await limiter.enforce(tenant_id="t1", patient_id="p1", daily_budget_tokens=1000)
+
+
+async def test_record_usage_delegates_to_the_llm_budget_guard() -> None:
+    """`record_usage` (tasks.md task 12.1's rate-limiter/budget wiring): the
+    turn-end counterpart to `enforce` -- `/chat`/`/chat/stream` call this
+    once a turn completes, with the real token total `TokenUsageCallback
+    Handler` accumulated (design.md §19: "al finalizar el turno, el
+    middleware suma los tokens usados")."""
+    buckets = _FakeTokenBuckets(allow=True)
+    budget_guard = _FakeLlmBudgetGuard()
+    limiter = ChatRateLimiter(buckets, budget_guard)
+
+    new_total = await limiter.record_usage(tenant_id="t1", tokens_used=250)
+
+    assert new_total == 250
+    assert budget_guard.recorded == [("t1", 250)]

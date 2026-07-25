@@ -53,3 +53,19 @@ async def test_reminders_agent_produces_a_low_risk_proposed_action() -> None:
     assert proposed.is_mutating is True
     assert proposed.payload == {"appointment_id": "a1"}
     assert proposed.summary == plan.summary
+
+
+@pytest.mark.asyncio
+async def test_emits_a_status_event_scoped_to_appointment_view(monkeypatch) -> None:
+    import app.platform.inbound.graph.nodes.reminders_agent as module
+
+    calls: list[dict] = []
+    monkeypatch.setattr(module, "emit_status", lambda **kw: calls.append(kw))
+    plan = ReminderPlan(appointment_id="a1", summary="Remind about tomorrow's appointment")
+    node = make_reminders_agent_node(_FakePlanner(plan=plan))
+
+    await node(_state())
+
+    assert len(calls) == 1
+    assert calls[0]["action"] == "appointment:view"
+    assert calls[0]["allowed_actions"] == ["appointment:view"]

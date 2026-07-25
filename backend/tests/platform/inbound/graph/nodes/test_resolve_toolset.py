@@ -56,3 +56,21 @@ async def test_resolve_toolset_handles_an_empty_set() -> None:
     result = await node(_state())
 
     assert result == {"allowed_actions": []}
+
+
+@pytest.mark.asyncio
+async def test_emits_an_ungated_status_event(monkeypatch) -> None:
+    """`action=None` -- this phase is administrative (resolving the
+    toolset itself), not tied to any one RBAC-gated action, so it is never
+    suppressed regardless of `allowed_actions`."""
+    import app.platform.inbound.graph.nodes.resolve_toolset as module
+
+    calls: list[dict] = []
+    monkeypatch.setattr(module, "emit_status", lambda **kw: calls.append(kw))
+    list_allowed_actions = _FakeListAllowedActions(actions=set())
+    node = make_resolve_toolset_node(list_allowed_actions)
+
+    await node(_state())
+
+    assert len(calls) == 1
+    assert calls[0].get("action") is None

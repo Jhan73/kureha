@@ -139,12 +139,14 @@ def make_respond_node(suggestion_generator: SuggestionGeneratorPort):
             ctx = state["request_ctx"].to_tenant_context()
             outcome = state.get("outcome")
             allowed_actions = state.get("allowed_actions") or []
+            proposed_action = state.get("proposed_action")
             candidates = await suggestion_generator.generate(
                 ctx,
                 context=SuggestionContext(
                     intent=state.get("intent"),
                     allowed_actions=list(allowed_actions),
                     outcome_success=outcome.success if outcome is not None else None,
+                    proposed_action_summary=proposed_action.summary if proposed_action is not None else None,
                 ),
             )
             allowed = set(allowed_actions)

@@ -18,7 +18,7 @@ class UnwiredClinicalScopePolicy:
             "implementation (tasks.md task 12.3) before clinical_scope_validator runs for real."
         )
 
-    async def classify_outbound(self, ctx, chunk: str) -> OutboundScopeResult:
+    async def classify_outbound(self, ctx, chunk: str, *, callbacks=None) -> OutboundScopeResult:
         raise NotImplementedError(
             "UnwiredClinicalScopePolicy is a placeholder -- wire a real ClinicalScopePolicy "
             "implementation (tasks.md task 12.3) before response_guard runs for real."

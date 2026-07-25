@@ -37,6 +37,7 @@ from app.modules.governance.rbac.application.ports.driven.action_risk import Act
 from app.modules.scheduling.domain.risk_policy import RiskLevel, RiskPolicy
 from app.platform.inbound.graph.ports.scheduling_planner import SchedulingPlannerPort
 from app.platform.inbound.graph.state import KurehaState, ProposedAction
+from app.platform.inbound.graph.streaming.status_writer import emit_status
 
 _DEFAULT_BULK_CANCEL_THRESHOLD = 3
 
@@ -55,6 +56,19 @@ def make_scheduling_agent_node(
     async def scheduling_agent(state: KurehaState) -> dict:
         ctx = state["request_ctx"].to_tenant_context()
         plan = await planner.plan(ctx, intent=state["intent"], message=state["channel_message"])
+
+        # design.md §8.5's own literal example ("checking_availability" /
+        # "Consultando disponibilidad") -- scoped to `state.allowed_actions`
+        # (already resolved by `resolve_toolset`, upstream of this node) so
+        # a status event never names an action outside the caller's own
+        # RBAC grant, even transiently (tasks.md task 12.2, spec
+        # `internal-staff-copilot`).
+        emit_status(
+            phase="checking_availability",
+            label="Consultando disponibilidad",
+            action=plan.action,
+            allowed_actions=state.get("allowed_actions"),
+        )
 
         if plan.appointment_ids is not None:
             risk = RiskPolicy.evaluate_bulk_cancel(len(plan.appointment_ids), threshold=bulk_cancel_threshold)

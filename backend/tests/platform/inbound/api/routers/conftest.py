@@ -26,6 +26,7 @@ app's shared singletons), so it never competes with the portal's loop
 either."""
 
 import asyncio
+import sys
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import timedelta
@@ -35,6 +36,27 @@ import sqlalchemy as sa
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncConnection
 from sqlalchemy.pool import NullPool
+
+# PR 12 batch 2, discovered while writing `test_chat.py`'s first test to
+# genuinely complete a successful `graph.ainvoke()` end to end (every prior
+# test in this package either failed pre-graph, at 401, or asserted a
+# generic 500 for a DIFFERENT reason before this point was ever reached):
+# `POST /chat` (`chat.py`) constructs a real `AsyncPostgresSaver` via
+# `composition_root.open_checkpointer_connection()`, which requires a raw
+# `psycopg.AsyncConnection` -- `psycopg`'s async mode raises `InterfaceError`
+# under `asyncio`'s DEFAULT event loop on Windows (`ProactorEventLoop`; it
+# only supports a selector-based loop). Confirmed empirically THIS session:
+# `WindowsSelectorEventLoopPolicy` fixes it, with no effect on non-Windows
+# CI. This is a genuine, PRE-EXISTING local-Windows-dev-only gap (production
+# targets AWS ECS/Linux per design.md §20, never affected) -- NOT something
+# any batch-1/2 adapter caused; it was simply never exercised before because
+# every earlier test in this package stopped short of a real, successful
+# checkpointer connection. Test-only fix, matching this module's own
+# existing precedent of documented, empirically-found Windows event-loop
+# workarounds for `TestClient`'s portal thread (see this module's own
+# docstring above).
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 from app.config import settings
 from app.db import create_engine, engine as _shared_engine, runtime_engine as _shared_runtime_engine
