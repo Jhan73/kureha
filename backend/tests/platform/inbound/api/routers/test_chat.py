@@ -341,6 +341,55 @@ class _FakeRateLimiterRecordingUsage:
         return tokens_used
 
 
+class _FakeBoomIntentClassifier:
+    """Raises a plain, unmapped exception carrying a value that must never
+    reach a client -- `triage` (`nodes/triage.py`) calls `intent_classifier.
+    classify()` unconditionally as the graph's first real node, before
+    `scope_policy`/`direct_response` are ever touched, so this fires early
+    inside `graph.astream()`'s loop, past FastAPI's own exception-handler
+    dispatch (see `_stream_turn`'s own docstring)."""
+
+    async def classify(self, ctx, message: str) -> IntentClassificationResult:
+        raise RuntimeError("db connection string leaked: postgres://user:pass@host/db")
+
+
+def test_chat_stream_surfaces_an_unmapped_exception_as_a_non_leaky_internal_error_event(client) -> None:
+    """Task 13.1: `resolve_error`'s unmapped-exception fallback (`errors.py`
+    §21.1's `internal_error`/`internal` category, proven for the
+    non-streaming boundary by `test_errors.py`'s `test_unmapped_exception_
+    falls_back_to_generic_internal_error_500`) must ALSO be reachable from
+    `/chat/stream`'s own `except Exception` clause -- not just FastAPI's
+    registered handlers, which never run for an exception raised inside an
+    already-started `StreamingResponse` body. Mirrors that test's own
+    non-leaky assertion style: the raw exception message must never surface
+    in the SSE `error` event's envelope."""
+    app.dependency_overrides[get_graph_dependencies] = lambda: GraphDependencies(
+        intent_classifier=_FakeBoomIntentClassifier(),
+    )
+    try:
+        actor = seed_reception_actor(email="chat-stream-unmapped-boom@example.com")
+        token = mint_access_token(
+            tenant_id=actor["tenant_id"], site_id=actor["site_id"], role="reception", user_id=actor["user_id"]
+        )
+
+        with client.stream(
+            "POST", "/chat/stream", json={"message": "hola"}, headers=auth_headers(token)
+        ) as response:
+            assert response.status_code == 200
+            raw = response.read().decode("utf-8")
+
+        events = _parse_sse_events(raw)
+        assert events[-1][0] == "error"
+        envelope = events[-1][1]
+        assert envelope["error_code"] == "internal_error"
+        assert envelope["category"] == "internal"
+        assert envelope["retryable"] is False
+        assert "postgres://" not in envelope["user_message"]
+        assert "RuntimeError" not in envelope["user_message"]
+    finally:
+        app.dependency_overrides.pop(get_graph_dependencies, None)
+
+
 def test_chat_stream_records_partial_token_usage_even_when_the_guard_refuses_mid_stream(client) -> None:
     """Issue 1, proven end to end: a `ResponseGuardStreamRefusal` raised
     mid-guard must still reach `rate_limiter.record_usage()` with whatever

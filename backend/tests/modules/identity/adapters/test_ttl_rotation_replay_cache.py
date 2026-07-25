@@ -29,6 +29,19 @@ def test_entries_expire_after_the_configured_ttl() -> None:
     assert cache.get("old-hash") is None
 
 
+def test_a_hash_never_returns_a_different_hashs_cached_pair() -> None:
+    """Task 13.2: no `tenant_id` prefix on this cache's key (see the
+    adapter's own module docstring for why) -- what actually matters is
+    that a lookup by one hash never returns another hash's cached rotation
+    result, proven directly rather than assumed from key equality."""
+    cache = TTLRotationReplayCache(ttl_seconds=30, maxsize=100)
+    cache.set("hash-a", access_token="access-a", refresh_token="refresh-a")
+    cache.set("hash-b", access_token="access-b", refresh_token="refresh-b")
+
+    assert cache.get("hash-a") == ("access-a", "refresh-a")
+    assert cache.get("hash-b") == ("access-b", "refresh-b")
+
+
 def test_maxsize_is_bounded() -> None:
     cache = TTLRotationReplayCache(ttl_seconds=30, maxsize=2)
     cache.set("a", access_token="x", refresh_token="y")

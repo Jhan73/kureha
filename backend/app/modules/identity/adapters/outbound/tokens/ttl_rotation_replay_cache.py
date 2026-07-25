@@ -2,7 +2,12 @@
 in-process `cachetools.TTLCache` -- same library/pattern already established
 for design.md §18's availability cache (`cachetools.TTLCache`, bounded
 `maxsize`, short TTL). See `RotationReplayCachePort`'s docstring for the
-multi-instance limitation this deliberately accepts."""
+multi-instance limitation this deliberately accepts.
+
+**No `tenant_id` prefix, deliberately (task 13.2's cache-invariant review):**
+the key is `old_refresh_token_hash`, a cryptographic hash of a per-user
+secret -- practically unique across tenants already, so a tenant prefix
+would add no real isolation, only ceremony."""
 
 from cachetools import TTLCache
 
