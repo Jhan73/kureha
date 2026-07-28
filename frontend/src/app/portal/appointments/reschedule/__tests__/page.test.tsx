@@ -132,4 +132,23 @@ describe("ReschedulePage", () => {
 
     expect(await screen.findByText("Target slot is unavailable")).toBeInTheDocument();
   });
+
+  // Spec `patient-self-service-portal` -> "Consent Gate Enforced in Portal"
+  // (verify-report #414 gap closure) -- see schedule/__tests__/page.test.tsx
+  // for the full rationale; same generic ApiError passthrough, pinned here
+  // for the reschedule action specifically.
+  it("blocks submission and shows the consent message when the backend denies for missing consent", async () => {
+    mockAuth({});
+    vi.mocked(rescheduleAppointment).mockRejectedValueOnce(
+      new ApiError(403, "You must accept the informed consent before continuing."),
+    );
+
+    render(<ReschedulePage />);
+    fillForm({ appointmentId: "appt-1", newAvailabilityId: "slot-2" });
+    fireEvent.click(screen.getByRole("button", { name: /reschedule appointment/i }));
+
+    expect(
+      await screen.findByText("You must accept the informed consent before continuing."),
+    ).toBeInTheDocument();
+  });
 });

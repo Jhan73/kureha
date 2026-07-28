@@ -132,6 +132,8 @@ from app.modules.calendar.application.use_cases.connect_patient_calendar import 
 from app.modules.calendar.application.use_cases.sync_appointment_to_calendar import SyncAppointmentToCalendar
 from app.modules.governance.audit.adapters.outbound.postgres.audit_log import PostgresAuditLog
 from app.modules.governance.audit.application.ports.driven.audit_log import AuditLogPort
+from app.modules.governance.consent.adapters.outbound.postgres.consent_registry import PostgresConsentRegistry
+from app.modules.governance.consent.application.use_cases.check_consent import CheckConsent
 from app.modules.governance.rbac.adapters.outbound.rbac.action_catalog import seed_action_catalog
 from app.modules.governance.rbac.adapters.outbound.rbac.default_role_permissions import (
     seed_default_role_permissions,
@@ -152,6 +154,7 @@ from app.modules.identity.application.use_cases.logout import Logout
 from app.modules.identity.application.use_cases.refresh_token import RefreshToken
 from app.modules.scheduling.adapters.outbound.postgres.availability_repository import PostgresAvailabilityRepository
 from app.modules.scheduling.adapters.outbound.postgres.scheduling_repository import PostgresSchedulingRepository
+from app.modules.scheduling.application.ports.driven.scheduling_repository import SchedulingRepositoryPort
 from app.modules.scheduling.application.ports.driven.staff_status_port import StaffStatusPort
 from app.modules.scheduling.application.use_cases.cancel_appointment import CancelAppointment
 from app.modules.scheduling.application.use_cases.reschedule_appointment import RescheduleAppointment
@@ -535,6 +538,32 @@ def build_logout(conn: AsyncConnection) -> Logout:
     return Logout(PostgresSessionStore(conn), SystemClock())
 
 
+def build_check_consent(conn: AsyncConnection) -> CheckConsent:
+    """The `platform/inbound/graph/build_graph.py`'s `consent_gate` node
+    wires this same use case inline (not via this module, since the graph's
+    own `GraphDependencies` construction predates task 10.2's router-facing
+    `build_*` convention) -- this factory is the web-form channel's
+    equivalent, closing verify-report #414's CRITICAL finding for spec
+    `patient-self-service-portal` (`scheduling.py`'s own module docstring
+    has the full closure note). `conn` MUST be an
+    `open_runtime_connection()` connection with the caller's `app.*` GUCs
+    already set, same as every other `build_*` factory here -- `CheckConsent`
+    reads `consent_policies`/`consents`, both RLS-scoped tables."""
+    return CheckConsent(PostgresConsentRegistry(conn))
+
+
+def build_scheduling_repository(conn: AsyncConnection) -> SchedulingRepositoryPort:
+    """Standalone `SchedulingRepositoryPort` factory -- unlike
+    `PostgresSchedulingRepository`'s other callers below (each embedded
+    inline inside a `build_*_appointment` use-case factory), `scheduling.py`'s
+    consent-gate wiring (verify-report #414 closure) needs a bare
+    read-only lookup (`get_appointment`) BEFORE any mutating use case runs,
+    to resolve the authoritative `patient_id` for `reschedule`/`cancel`/
+    `reminder` (none of which carry `patient_id` as a request field -- see
+    that router's own module docstring)."""
+    return PostgresSchedulingRepository(conn)
+
+
 def build_schedule_appointment(conn: AsyncConnection) -> ScheduleAppointment:
     """`conn` MUST be an `open_runtime_connection()` connection with the
     caller's `app.*` GUCs already set (RLS-scoped, RBAC-gated)."""
@@ -767,6 +796,7 @@ __all__ = [
     "build_authorize_action",
     "build_cancel_appointment",
     "build_chat_rate_limiter",
+    "build_check_consent",
     "build_connect_patient_calendar",
     "build_create_shift",
     "build_deactivate_staff",
@@ -785,6 +815,7 @@ __all__ = [
     "build_runtime_session",
     "build_schedule_appointment",
     "build_scheduling_planner",
+    "build_scheduling_repository",
     "build_scope_policy",
     "build_send_reminder",
     "build_staff_planner",

@@ -65,6 +65,9 @@ from app.modules.governance.rbac.adapters.outbound.rbac.default_role_permissions
 from app.modules.identity.adapters.outbound.tokens.jwt_access_token_issuer import JwtAccessTokenIssuer
 from app.shared_kernel.clock import SystemClock
 from app.shared_kernel.tenant_context import TenantContext
+from tests.rls.helpers import seed_appointment as _seed_appointment_row
+from tests.rls.helpers import seed_consent as _seed_consent_row
+from tests.rls.helpers import seed_consent_policy as _seed_consent_policy_row
 from tests.schema.helpers import make_patient, make_professional, make_site, make_tenant, make_user, make_user_credentials
 
 async def _cleanup_committed_test_data() -> None:
@@ -254,6 +257,44 @@ async def _seed_available_slot(tenant_id: str, site_id: str, *, starts_at, ends_
 
 def seed_available_slot(tenant_id: str, site_id: str, *, starts_at, ends_at) -> dict:
     return _run(_seed_available_slot(tenant_id, site_id, starts_at=starts_at, ends_at=ends_at))
+
+
+async def _seed_current_consent(tenant_id: str, site_id: str, patient_id: str, *, version: str) -> None:
+    async with _committing_conn() as conn:
+        await _seed_consent_policy_row(conn, tenant_id, version=version, is_current=True)
+        await _seed_consent_row(conn, tenant_id, site_id, patient_id, policy_version=version)
+
+
+def seed_current_consent(tenant_id: str, site_id: str, patient_id: str, *, version: str = "2026.1") -> None:
+    """Verify-report #414 gap closure: seeds a `consent_policies` row
+    (`is_current=True`) plus a matching `consents` row for `patient_id`, so
+    `CheckConsent.execute` resolves `ConsentCheckResult.CURRENT`. Reuses
+    `tests.rls.helpers`' seed functions directly (they accept any
+    `AsyncConnection`, not just `rls_conn`)."""
+    _run(_seed_current_consent(tenant_id, site_id, patient_id, version=version))
+
+
+async def _seed_scheduled_appointment(
+    tenant_id: str, site_id: str, patient_id: str, professional_id: str, availability_id: str, *, starts_at, ends_at
+) -> str:
+    async with _committing_conn() as conn:
+        return await _seed_appointment_row(
+            conn, tenant_id, site_id, patient_id, professional_id, availability_id, starts_at=starts_at, ends_at=ends_at
+        )
+
+
+def seed_scheduled_appointment(
+    tenant_id: str, site_id: str, patient_id: str, professional_id: str, availability_id: str, *, starts_at, ends_at
+) -> str:
+    """Seeds a `status='scheduled'` `appointments` row directly (bypassing
+    `ScheduleAppointment`), for tests exercising `reschedule`/`cancel`/
+    `reminder` -- which need an EXISTING appointment as their starting
+    point, unlike `schedule` which creates one."""
+    return _run(
+        _seed_scheduled_appointment(
+            tenant_id, site_id, patient_id, professional_id, availability_id, starts_at=starts_at, ends_at=ends_at
+        )
+    )
 
 
 async def _mint_access_token(*, tenant_id: str, site_id: str, role: str, user_id: str) -> str:
