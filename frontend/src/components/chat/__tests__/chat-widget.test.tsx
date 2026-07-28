@@ -223,4 +223,128 @@ describe("ChatWidget", () => {
     expect(document.querySelector("script")).toBeNull();
     expect((window as unknown as { __pwned?: boolean }).__pwned).toBeUndefined();
   });
+
+  // tasks.md 14.5: a confirmation prompt (turn N asks, turn N+1
+  // affirms/declines) is deliberately NOT a special UI mode -- design.md
+  // §8.5 states it "travels... with no protocol difference from a normal
+  // response" and spec `embedded-patient-chat`'s "Confirmation Required
+  // Before Any Mutating Action" scenarios never describe a distinct
+  // confirm/decline widget, only that the prompt is delivered in-stream and
+  // the next turn's plain-text reply resolves it. These are approval tests
+  // (strict-tdd.md's "Approval Testing" pattern): they capture and prove
+  // CURRENT behavior of the existing turn-N/turn-N+1 send path rather than
+  // drive new production code -- 14.3/14.4 already built the only mechanism
+  // this needs (an ordinary assistant turn, an ordinary user turn, the same
+  // streamChat() call). No implementation changes accompany this task.
+  it("renders a confirmation prompt as an ordinary assistant turn, then the user's plain-text affirmation on the next turn through the exact same send path", async () => {
+    let emitTurnN: ((event: ChatStreamEvent) => void) | undefined;
+    vi.mocked(streamChat).mockImplementationOnce(async (_fetch, _params, onEvent) => {
+      emitTurnN = onEvent;
+    });
+
+    render(<ChatWidget />);
+    sendMessage("agenda un turno con la Dra. X el martes a las 10");
+    await waitFor(() => expect(emitTurnN).toBeDefined());
+
+    emitTurnN?.({
+      type: "token",
+      delta: "Voy a reservar cita con la Dra. X el martes a las 10:00. ¿Confirmas?",
+    });
+    emitTurnN?.({ type: "done", audit_ref: null, calendar_sync_status: null, finish_reason: "stop" });
+
+    expect(
+      await screen.findByText("Voy a reservar cita con la Dra. X el martes a las 10:00. ¿Confirmas?"),
+    ).toBeInTheDocument();
+
+    // No dedicated confirm/decline affordance exists -- the send form is the
+    // only way to respond, same as any other turn.
+    expect(screen.queryByRole("button", { name: /confirm/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /decline/i })).toBeNull();
+    expect(screen.getByRole("button", { name: /send/i })).not.toBeDisabled();
+
+    let emitTurnNPlus1: ((event: ChatStreamEvent) => void) | undefined;
+    vi.mocked(streamChat).mockImplementationOnce(async (_fetch, _params, onEvent) => {
+      emitTurnNPlus1 = onEvent;
+    });
+
+    sendMessage("Sí, confirmo");
+
+    // Same call shape as any other turn: same clientRandomUuid (thread
+    // continuity), a plain message string, no confirmation-specific field.
+    await waitFor(() =>
+      expect(streamChat).toHaveBeenNthCalledWith(
+        2,
+        expect.anything(),
+        { message: "Sí, confirmo", clientRandomUuid: "11111111-1111-4111-8111-111111111111" },
+        expect.any(Function),
+      ),
+    );
+    await waitFor(() => expect(emitTurnNPlus1).toBeDefined());
+
+    expect(await screen.findByText("Sí, confirmo")).toBeInTheDocument();
+
+    emitTurnNPlus1?.({
+      type: "token",
+      delta: "Listo, tu cita con la Dra. X quedó confirmada para el martes a las 10:00.",
+    });
+    emitTurnNPlus1?.({ type: "done", audit_ref: "aud-2", calendar_sync_status: "ok", finish_reason: "stop" });
+
+    expect(
+      await screen.findByText("Listo, tu cita con la Dra. X quedó confirmada para el martes a las 10:00."),
+    ).toBeInTheDocument();
+    // Turn N's original prompt is still visible, untouched by turn N+1.
+    expect(
+      screen.getByText("Voy a reservar cita con la Dra. X el martes a las 10:00. ¿Confirmas?"),
+    ).toBeInTheDocument();
+  });
+
+  it("also renders a decline exchange as ordinary chat turns, reusing the identical send path with no appointment-specific branching", async () => {
+    let emitTurnN: ((event: ChatStreamEvent) => void) | undefined;
+    vi.mocked(streamChat).mockImplementationOnce(async (_fetch, _params, onEvent) => {
+      emitTurnN = onEvent;
+    });
+
+    render(<ChatWidget />);
+    sendMessage("cancela mi proxima cita");
+    await waitFor(() => expect(emitTurnN).toBeDefined());
+
+    emitTurnN?.({
+      type: "token",
+      delta: "Voy a cancelar tu cita del jueves a las 9:00. ¿Confirmas?",
+    });
+    emitTurnN?.({ type: "done", audit_ref: null, calendar_sync_status: null, finish_reason: "stop" });
+
+    expect(
+      await screen.findByText("Voy a cancelar tu cita del jueves a las 9:00. ¿Confirmas?"),
+    ).toBeInTheDocument();
+
+    let emitTurnNPlus1: ((event: ChatStreamEvent) => void) | undefined;
+    vi.mocked(streamChat).mockImplementationOnce(async (_fetch, _params, onEvent) => {
+      emitTurnNPlus1 = onEvent;
+    });
+
+    sendMessage("No, dejalo");
+
+    await waitFor(() =>
+      expect(streamChat).toHaveBeenNthCalledWith(
+        2,
+        expect.anything(),
+        { message: "No, dejalo", clientRandomUuid: "11111111-1111-4111-8111-111111111111" },
+        expect.any(Function),
+      ),
+    );
+    await waitFor(() => expect(emitTurnNPlus1).toBeDefined());
+
+    emitTurnNPlus1?.({
+      type: "token",
+      delta: "Entendido, no se realizó ningún cambio. ¿En qué más puedo ayudarte?",
+    });
+    emitTurnNPlus1?.({ type: "done", audit_ref: null, calendar_sync_status: null, finish_reason: "stop" });
+
+    expect(await screen.findByText("No, dejalo")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Entendido, no se realizó ningún cambio. ¿En qué más puedo ayudarte?"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /send/i })).not.toBeDisabled();
+  });
 });
