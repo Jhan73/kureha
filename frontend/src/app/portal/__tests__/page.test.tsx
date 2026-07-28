@@ -57,6 +57,33 @@ describe("PortalPage", () => {
     expect(replace).not.toHaveBeenCalled();
   });
 
+  it("links to the schedule, reschedule, cancel, and reminder self-service views", async () => {
+    mockAuth({
+      accessToken: "access-1",
+      user: { userId: "user-1", role: "patient" },
+    });
+
+    render(<PortalPage />);
+    await screen.findByRole("heading");
+
+    expect(screen.getByRole("link", { name: /^schedule an appointment$/i })).toHaveAttribute(
+      "href",
+      "/portal/appointments/schedule",
+    );
+    expect(screen.getByRole("link", { name: /^reschedule an appointment$/i })).toHaveAttribute(
+      "href",
+      "/portal/appointments/reschedule",
+    );
+    expect(screen.getByRole("link", { name: /cancel an appointment/i })).toHaveAttribute(
+      "href",
+      "/portal/appointments/cancel",
+    );
+    expect(screen.getByRole("link", { name: /request a reminder/i })).toHaveAttribute(
+      "href",
+      "/portal/appointments/reminder",
+    );
+  });
+
   it("redirects to /login through RequireAuth when unauthenticated and silent refresh fails", async () => {
     mockAuth({ accessToken: null, silentRefresh: vi.fn().mockResolvedValue(false) });
 

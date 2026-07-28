@@ -11,7 +11,12 @@ export class ApiError extends Error {
   }
 }
 
-async function parseJsonOrThrow<T>(response: Response): Promise<T> {
+/**
+ * Exported for reuse by other API modules (e.g. `scheduling.ts`) that call
+ * `authorizedFetch` directly instead of the bare `fetch` wrapper this file
+ * uses for the unauthenticated `/auth/*` routes.
+ */
+export async function parseJsonOrThrow<T>(response: Response): Promise<T> {
   if (!response.ok) {
     let message = response.statusText || "Request failed";
     try {
@@ -65,6 +70,8 @@ export async function logout(params: {
   }
 }
 
+export type AuthorizedFetch = (path: string, init?: RequestInit) => Promise<Response>;
+
 export interface AuthorizedFetchDeps {
   getAccessToken: () => string | null;
   getRefreshToken: () => string | null;
@@ -80,7 +87,7 @@ export interface AuthorizedFetchDeps {
  * now-consumed refresh token would otherwise only succeed by luck of the
  * 30-second rotation grace period -- see design.md §17.4 ADR-15).
  */
-export function createAuthorizedFetch(deps: AuthorizedFetchDeps) {
+export function createAuthorizedFetch(deps: AuthorizedFetchDeps): AuthorizedFetch {
   let inFlightRefresh: Promise<TokenResponse | null> | null = null;
 
   function doRefresh(): Promise<TokenResponse | null> {
@@ -117,10 +124,7 @@ export function createAuthorizedFetch(deps: AuthorizedFetchDeps) {
     return fetch(`${API_BASE_URL}${path}`, { ...init, headers });
   }
 
-  return async function authorizedFetch(
-    path: string,
-    init?: RequestInit,
-  ): Promise<Response> {
+  const authorizedFetch: AuthorizedFetch = async (path, init) => {
     const response = await requestWith(path, init, deps.getAccessToken());
     if (response.status !== 401) {
       return response;
@@ -140,4 +144,6 @@ export function createAuthorizedFetch(deps: AuthorizedFetchDeps) {
     }
     return retried;
   };
+
+  return authorizedFetch;
 }

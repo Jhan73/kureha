@@ -1,8 +1,16 @@
 "use client";
 
+import Link from "next/link";
 import { RequireAuth } from "@/lib/auth/require-auth";
 import { useAuth } from "@/lib/auth/auth-context";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+
+const APPOINTMENT_LINKS = [
+  { href: "/portal/appointments/schedule", label: "Schedule an appointment" },
+  { href: "/portal/appointments/reschedule", label: "Reschedule an appointment" },
+  { href: "/portal/appointments/cancel", label: "Cancel an appointment" },
+  { href: "/portal/appointments/reminder", label: "Request a reminder" },
+] as const;
 
 function PortalContent() {
   const { user, logout } = useAuth();
@@ -13,9 +21,16 @@ function PortalContent() {
         Welcome{user ? `, ${user.role}` : ""}
       </h1>
       <p className="max-w-sm text-sm text-muted-foreground">
-        This is a placeholder landing page. Self-service scheduling and the
-        embedded chat ship in a later batch.
+        Manage your own appointments below. The embedded chat ships in a
+        later batch.
       </p>
+      <nav className="flex w-full max-w-xs flex-col gap-2">
+        {APPOINTMENT_LINKS.map(({ href, label }) => (
+          <Link key={href} href={href} className={buttonVariants({ variant: "outline" })}>
+            {label}
+          </Link>
+        ))}
+      </nav>
       <Button variant="outline" onClick={() => void logout()}>
         Log out
       </Button>
@@ -23,8 +38,9 @@ function PortalContent() {
   );
 }
 
-// Placeholder post-login landing page (14.2/14.3 build the real self-service
-// views here later) and the first real consumer of `RequireAuth`.
+// Authenticated landing page: the first real consumer of `RequireAuth`, now
+// linking to the self-service appointment views built in tasks.md 14.2. The
+// embedded chat (14.3+) lands here in a later batch.
 export default function PortalPage() {
   return (
     <RequireAuth>
