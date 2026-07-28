@@ -10,6 +10,7 @@ const APPOINTMENT_LINKS = [
   { href: "/portal/appointments/reschedule", label: "Reschedule an appointment" },
   { href: "/portal/appointments/cancel", label: "Cancel an appointment" },
   { href: "/portal/appointments/reminder", label: "Request a reminder" },
+  { href: "/portal/chat", label: "Chat with Tony" },
 ] as const;
 
 function PortalContent() {
@@ -21,8 +22,8 @@ function PortalContent() {
         Welcome{user ? `, ${user.role}` : ""}
       </h1>
       <p className="max-w-sm text-sm text-muted-foreground">
-        Manage your own appointments below. The embedded chat ships in a
-        later batch.
+        Manage your own appointments below, or chat with Tony for
+        administrative help.
       </p>
       <nav className="flex w-full max-w-xs flex-col gap-2">
         {APPOINTMENT_LINKS.map(({ href, label }) => (

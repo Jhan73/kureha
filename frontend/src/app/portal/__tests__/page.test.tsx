@@ -82,6 +82,10 @@ describe("PortalPage", () => {
       "href",
       "/portal/appointments/reminder",
     );
+    expect(screen.getByRole("link", { name: /chat with tony/i })).toHaveAttribute(
+      "href",
+      "/portal/chat",
+    );
   });
 
   it("redirects to /login through RequireAuth when unauthenticated and silent refresh fails", async () => {
