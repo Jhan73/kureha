@@ -163,4 +163,64 @@ describe("ChatWidget", () => {
 
     expect(await screen.findByText("Session expired")).toBeInTheDocument();
   });
+
+  it("renders Tony's Markdown response as real HTML elements (bold, link, list), not raw markdown text", async () => {
+    let emit: ((event: ChatStreamEvent) => void) | undefined;
+    vi.mocked(streamChat).mockImplementationOnce(async (_fetch, _params, onEvent) => {
+      emit = onEvent;
+    });
+
+    render(<ChatWidget />);
+    sendMessage("que horarios hay");
+    await waitFor(() => expect(emit).toBeDefined());
+
+    emit?.({
+      type: "token",
+      delta:
+        "**Horarios disponibles:**\n\n- 10:00 con [Dr. Perez](https://example.com/dr-perez)\n- 11:00\n",
+    });
+    emit?.({ type: "done", audit_ref: "aud-1", calendar_sync_status: null, finish_reason: "stop" });
+
+    const bold = await screen.findByText("Horarios disponibles:");
+    expect(bold.tagName).toBe("STRONG");
+
+    const link = screen.getByRole("link", { name: "Dr. Perez" });
+    expect(link).toHaveAttribute("href", "https://example.com/dr-perez");
+
+    const secondItem = screen.getByText("11:00");
+    expect(secondItem.tagName).toBe("LI");
+    expect(secondItem.closest("ul")).not.toBeNull();
+  });
+
+  it("neutralizes malicious markup in Tony's response: a javascript: link loses its href, and a raw script tag never becomes an executable element", async () => {
+    let emit: ((event: ChatStreamEvent) => void) | undefined;
+    vi.mocked(streamChat).mockImplementationOnce(async (_fetch, _params, onEvent) => {
+      emit = onEvent;
+    });
+
+    render(<ChatWidget />);
+    sendMessage("hola");
+    await waitFor(() => expect(emit).toBeDefined());
+
+    emit?.({
+      type: "token",
+      delta:
+        "[click here](javascript:window.__pwned=true) Hola <script>window.__pwned = true;</script> hay turnos.",
+    });
+    emit?.({ type: "done", audit_ref: "aud-1", calendar_sync_status: null, finish_reason: "stop" });
+
+    // The javascript: URI is the load-bearing assertion: it only gets stripped
+    // once react-markdown's output is actually passed through rehype-sanitize's
+    // href-protocol allowlist -- it is NOT stripped by react-markdown alone.
+    const link = await screen.findByText("click here");
+    expect(link.tagName).toBe("A");
+    // rehype-sanitize's default schema disallows the javascript: protocol on
+    // href, so the whole attribute is stripped rather than left neutered.
+    expect(link.getAttribute("href")).toBeNull();
+
+    // Defense-in-depth: the raw <script> tag must never become a real DOM
+    // script element or execute, regardless of renderer.
+    expect(document.querySelector("script")).toBeNull();
+    expect((window as unknown as { __pwned?: boolean }).__pwned).toBeUndefined();
+  });
 });
