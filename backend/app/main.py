@@ -40,6 +40,7 @@ from contextlib import asynccontextmanager
 
 import httpx
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.composition_root import (
     bootstrap_rbac_catalog_and_grants,
@@ -48,6 +49,7 @@ from app.composition_root import (
     open_elevated_connection,
     open_runtime_connection,
 )
+from app.config import settings
 from app.modules.governance.audit.adapters.outbound.postgres.audit_log import PostgresAuditLog
 from app.modules.governance.audit.domain.audit_entry import AuditEntry
 from app.platform.inbound.api.access_control.adapters.postgres_live_actor_resolver import PostgresLiveActorResolver
@@ -164,6 +166,19 @@ def create_app() -> FastAPI:
         ),
         protected_path_prefixes=_AUTH_RATE_LIMIT_PROTECTED_PREFIXES,
         record_audit=audit_log,
+    )
+
+    # Added LAST -> outermost -> runs FIRST per request (see this module's
+    # own comment on `add_middleware` ordering above), so it can answer a
+    # browser's CORS preflight `OPTIONS` before either middleware above ever
+    # runs, and attach `Access-Control-Allow-Origin` to every response,
+    # including error responses from the two middlewares below it.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[origin.strip() for origin in settings.cors_allowed_origins.split(",") if origin.strip()],
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
 
     return app

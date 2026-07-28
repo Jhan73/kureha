@@ -47,7 +47,28 @@ first real caller -- raised by the SSE-layer sentence-boundary guard when a
 streamed unit classifies as unsafe, resolved to this SAME envelope via
 `resolve_error()` (see that function's own docstring for why `/chat/
 stream`'s SSE `error` event cannot go through FastAPI's own exception
-handler dispatch)."""
+handler dispatch).
+
+**A 7th category, `consent-required`, was added here closing sdd-verify
+`verify-report` #414's CRITICAL finding** (spec `patient-self-service-portal`
+-> "Consent Gate Enforced in Portal" was unimplemented for the web-form
+channel). Spec `platform-hardening` -> "Descriptive, Non-Leaky Error
+Taxonomy" only requires distinguishing its 5 named categories "at minimum" --
+this is a deliberate, documented extension, not a violation of design.md
+§21.1's table (which predates this gap closure and is not itself amended
+here; a future design.md revision should fold this category into §21.1's
+table for consistency, flagged, not silently left out of sync).
+`ConsentNotCurrentError`'s own module docstring
+(`modules/governance/consent/domain/errors.py`) explains why consent is its
+own plane rather than folded into `auth`. **Language note, flagged not
+silently decided:** this category's `user_message` is English, unlike every
+other entry in this table (which are Spanish, presumably per
+`openspec/config.yaml`'s carve-out for end-user text the business
+specifically requested in Spanish) -- chosen to match the frontend's own
+all-English UI copy for this gap-closure batch. This is a genuine,
+pre-existing language inconsistency across `_MAPPINGS` (English identifiers
+throughout, but a per-entry-Spanish-or-English `user_message`) worth a
+future product/i18n decision, not resolved wholesale here."""
 
 import logging
 import uuid
@@ -59,6 +80,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.modules.calendar.domain.errors import OAuthStateMismatchError
+from app.modules.governance.consent.domain.errors import ConsentNotCurrentError
 from app.modules.governance.rbac.application.use_cases.authorize_action import ActionNotPermittedError
 from app.modules.identity.domain.errors import (
     InactiveUserError,
@@ -173,6 +195,18 @@ _MAPPINGS: dict[type[BaseException], _ErrorMapping] = {
         "clinical_scope_refused",
         "clinical-scope-refused",
         "Solo puedo ayudarte con temas administrativos; derivo tu consulta clinica a un profesional.",
+        retryable=False,
+    ),
+    # consent-required (design.md §11, verify-report #414 gap closure): the
+    # patient has no CURRENT consent on file. Its own category, not folded
+    # into `auth` -- see `ConsentNotCurrentError`'s module docstring and this
+    # module's own docstring for why, and for the deliberate English
+    # `user_message` (unlike this table's other, Spanish, entries).
+    ConsentNotCurrentError: _ErrorMapping(
+        403,
+        "consent_required",
+        "consent-required",
+        "You must accept the informed consent before continuing.",
         retryable=False,
     ),
 }
