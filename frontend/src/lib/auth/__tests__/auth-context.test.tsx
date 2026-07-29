@@ -94,6 +94,40 @@ describe("AuthProvider", () => {
     expect(window.localStorage.getItem("kureha.refresh_token")).toBe("refresh-1");
   });
 
+  it("login() resolves with the freshly authenticated user (tasks.md 15.1: lets a caller act on the resolved role immediately, no stale-closure re-render needed)", async () => {
+    vi.mocked(apiLogin).mockResolvedValueOnce(tokens);
+    let resolvedUser: { userId: string; role: string } | null = null;
+
+    function ResolvingHarness() {
+      const { login } = useAuth();
+      return (
+        <button
+          onClick={() => {
+            void login({ tenantId: "tenant-1", email: "a@example.com", password: "secret" }).then(
+              (user) => {
+                resolvedUser = user;
+              },
+            );
+          }}
+        >
+          login
+        </button>
+      );
+    }
+
+    render(
+      <AuthProvider>
+        <ResolvingHarness />
+      </AuthProvider>,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("login"));
+    });
+
+    expect(resolvedUser).toEqual({ userId: "user-1", role: "patient" });
+  });
+
   it("logout() clears in-memory state and the persisted refresh token", async () => {
     vi.mocked(apiLogin).mockResolvedValueOnce(tokens);
     vi.mocked(apiLogout).mockResolvedValueOnce(undefined);

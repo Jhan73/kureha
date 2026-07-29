@@ -49,6 +49,19 @@ describe("RequireAuth", () => {
     expect(screen.queryByText("Protected")).toBeNull();
   });
 
+  it("redirects to a caller-supplied redirectTo instead of /login when provided", async () => {
+    mockAuth({ accessToken: null, silentRefresh: vi.fn().mockResolvedValue(false) });
+
+    render(
+      <RequireAuth redirectTo="/staff/login">
+        <div>Protected</div>
+      </RequireAuth>,
+    );
+
+    expect(screen.queryByText("Protected")).toBeNull();
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/staff/login"));
+  });
+
   it("renders protected content immediately when an access token is already present", async () => {
     mockAuth({ accessToken: "access-1" });
 
