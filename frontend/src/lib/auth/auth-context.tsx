@@ -30,7 +30,16 @@ export interface AuthContextValue {
   /** In-memory only, per tasks.md 14.1's "access-token-in-memory strategy" -- never persisted. */
   accessToken: string | null;
   user: AuthUser | null;
-  login: (params: LoginParams) => Promise<void>;
+  /**
+   * Resolves with the freshly authenticated `AuthUser` (tasks.md 15.1) --
+   * NOT just `Promise<void>` -- so a caller that needs to branch on the
+   * just-resolved `role` (e.g. `/staff/login`'s "reject a patient account"
+   * check) can do so directly in its own event handler, without an
+   * `useEffect` racing this context's own internal `setUser` update (a
+   * stale-closure hazard: reading `user` from this component's own render
+   * right after `await login(...)` would still see the PRE-login value).
+   */
+  login: (params: LoginParams) => Promise<AuthUser>;
   logout: () => Promise<void>;
   /** Attempts to mint a new access token from the persisted refresh token. Returns whether it succeeded. */
   silentRefresh: () => Promise<boolean>;
@@ -51,11 +60,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // produced it, no `ref.current`-during-render lint hazard.
   const [refreshToken, setRefreshToken] = useState<string | null>(null);
 
-  const applyTokens = useCallback((tokens: TokenResponse) => {
+  const applyTokens = useCallback((tokens: TokenResponse): AuthUser => {
+    const nextUser = userFromTokens(tokens);
     setAccessToken(tokens.access_token);
-    setUser(userFromTokens(tokens));
+    setUser(nextUser);
     setRefreshToken(tokens.refresh_token);
     saveRefreshToken(tokens.refresh_token);
+    return nextUser;
   }, []);
 
   const clearAuth = useCallback(() => {
@@ -66,9 +77,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(
-    async (params: LoginParams) => {
+    async (params: LoginParams): Promise<AuthUser> => {
       const tokens = await apiLogin(params);
-      applyTokens(tokens);
+      return applyTokens(tokens);
     },
     [applyTokens],
   );
