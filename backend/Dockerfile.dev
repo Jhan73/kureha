@@ -18,6 +18,9 @@ RUN uv sync --frozen --no-install-project
 COPY . .
 RUN uv sync --frozen
 
+RUN chmod +x scripts/entrypoint-dev.sh
+
 EXPOSE 8000
 
+ENTRYPOINT ["scripts/entrypoint-dev.sh"]
 CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

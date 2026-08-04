@@ -18,3 +18,18 @@ docker-compose.override.yml
 Thumbs.db
 .vscode/
 .idea/
+
+# Terraform (infra/terraform/) -- state and plan output can contain
+# plaintext secrets (see infra/terraform/modules/rds/main.tf's own
+# comment); tfvars files hold environment-specific values, not committed.
+# `.terraform.lock.hcl` is DELIBERATELY NOT ignored -- HashiCorp's own
+# convention is to commit it for reproducible provider versions.
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+!*.tfvars.example
+crash.log
+crash.*.log
+
