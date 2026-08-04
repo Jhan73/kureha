@@ -1,0 +1,14 @@
+# Normalize line endings across platforms. Discovered during tasks.md
+# 16.5's local-dev verification: on Windows with `core.autocrlf=true`,
+# infra/localstack/init/*.sh gets checked out with CRLF line endings; since
+# docker-compose.yml bind-mounts that directory straight into the
+# LocalStack container (no build-context normalization step), the CRLF
+# bytes reach `bash` unchanged and break `set -euo pipefail` parsing
+# ("invalid option name") -- every init script silently failed (exit 127
+# from LocalStack's own script runner) with no obvious link back to line
+# endings. Shell scripts specifically MUST stay LF; text files in general
+# get git's usual auto-detection.
+* text=auto
+
+*.sh text eol=lf
+*.sql text eol=lf

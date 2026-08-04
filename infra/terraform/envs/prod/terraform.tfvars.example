@@ -1,0 +1,27 @@
+# Copy to terraform.tfvars and fill in the values that have no safe
+# default (terraform.tfvars is gitignored -- see infra/terraform/README.md).
+
+aws_region = "us-east-1"
+
+# ACM certificate for the ALB's HTTPS listener, issued/validated in
+# aws_region out-of-band (e.g. via `aws acm request-certificate` + DNS
+# validation records added to whatever DNS provider hosts the domain).
+acm_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/CHANGE_ME"
+
+# Backend image, built from backend/Dockerfile (production target) and
+# pushed to ECR by the CI/CD pipeline before `terraform apply`.
+backend_image_uri = "123456789012.dkr.ecr.us-east-1.amazonaws.com/kureha-backend:CHANGE_ME"
+
+# Real CloudFront/S3 SPA origin, comma-separated if there is more than one
+# (design.md §20: the frontend is a separately-deployed static SPA, never
+# same-origin with the backend).
+cors_allowed_origins = "https://app.kureha.example"
+
+# Optional: on-call email for the audit hash-chain SNS topic (design.md
+# §4.3). Leave unset to wire the topic without a subscriber.
+# alarm_email = "oncall@kureha.example"
+
+# Optional: custom domain for the SPA's CloudFront distribution. Requires
+# an ACM certificate issued in us-east-1 regardless of aws_region.
+# frontend_domain_aliases       = ["app.kureha.example"]
+# frontend_acm_certificate_arn  = "arn:aws:acm:us-east-1:123456789012:certificate/CHANGE_ME"

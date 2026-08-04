@@ -1,7 +1,18 @@
 services:
 
   localstack:
-    image: localstack/localstack:latest
+    # Pinned, not `:latest` (task 16.5 finding): `:latest` currently
+    # resolves to LocalStack 2026.7.0, which refuses to boot at all
+    # ("License activation failed", exit code 55) without a valid
+    # LOCALSTACK_AUTH_TOKEN -- even though every service this compose file
+    # requests (secretsmanager/s3/sns/logs/cloudwatch) is Community-tier
+    # (design.md §22.2's own table). This was a previously-documented but
+    # never root-caused gotcha across PR 14/15 sessions ("exited (55), a
+    # pre-existing local-environment issue") -- root-caused this session:
+    # 3.8 boots cleanly with LOCALSTACK_AUTH_TOKEN="" and serves every
+    # Community service this project uses. Bump deliberately, not blindly,
+    # if a newer pinned version is ever needed.
+    image: localstack/localstack:3.8
     ports:
       - "4566:4566"
     environment:
@@ -19,7 +30,7 @@ services:
   postgres:
     image: postgres:16
     ports:
-      - "5432:5432"
+      - "5436:5432"
     environment:
       POSTGRES_DB: kureha_dev
       POSTGRES_USER: app_user
