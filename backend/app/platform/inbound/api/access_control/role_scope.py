@@ -73,3 +73,29 @@ async def scoped_as_patient(conn: AsyncConnection, *, patient_id: str, restore_r
         yield
     finally:
         await set_role_scope(conn, role=restore_role)
+
+
+@asynccontextmanager
+async def scoped_as_admin(conn: AsyncConnection, *, restore_role: str) -> AsyncIterator[None]:
+    """Second documented case for this module's re-scoping mechanism (added
+    staff-invite batch): `users`' RLS write policy (`users_admin_write`,
+    migration 613f9ea3526f) permits INSERT/UPDATE/DELETE ONLY when
+    `current_setting('app.role') = 'admin'` literally -- `reception`, which
+    `staff:register` (RBAC) also grants (`default_role_permissions.py`), is
+    NOT in that predicate (unlike `users_staff_select`'s SELECT-only policy,
+    which does include `reception`). Confirmed empirically: a real
+    `reception` actor's own runtime connection raised
+    `InsufficientPrivilegeError` inserting into `users` without this
+    elevation. Since RBAC (`AuthorizeAction`, `staff:register`) already
+    authorizes the calling actor for this exact action BEFORE
+    `composition_root.build_provision_staff_identity`'s wrapper ever reaches
+    this scope (`staff.py` router's own `_require_authorized`), this
+    temporary elevation does not widen who can reach this code path -- it
+    only satisfies a stricter RLS predicate than RBAC's own gate for a role
+    RBAC already approved, the same "two independent, both-must-pass
+    planes" relationship design.md §5.1 describes generally."""
+    await set_role_scope(conn, role="admin")
+    try:
+        yield
+    finally:
+        await set_role_scope(conn, role=restore_role)

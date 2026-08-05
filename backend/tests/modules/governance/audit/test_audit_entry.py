@@ -63,6 +63,15 @@ _EXPECTED_ACTIONS = {
     # `status=email_mismatch` payload branch. Task 10.1's own text requires
     # this exact catalog entry.
     "calendar.oauth_csrf_attempt",
+    # Added by the staff-invite/password-reset batch: `ProvisionStaffIdentity`
+    # (identity module) is the FIRST real `users`+`user_credentials`
+    # provisioning path in this codebase (design.md §17 extension -- new
+    # staff accounts are provisioned by admin/reception INVITING an email
+    # via Supabase, never by an admin setting a temporary password). No
+    # existing entry represents "a new authenticatable identity/credential
+    # was created" -- distinct from `staff.register` (the SEPARATE
+    # `staff_members` operational-registry row).
+    "auth.credential_created",
 }
 
 

@@ -311,6 +311,35 @@ def auth_headers(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
+def reset_auth_ip_rate_limit_budget() -> None:
+    """Deletes the `auth_ip`-dimension `rate_counters` row for the
+    `TestClient`'s fixed `"testclient"` subject (`AuthRateLimitMiddleware
+    ._resolve_subject`'s fallback when `request.client.host` is unset by a
+    trusted proxy header, which it never is in these tests).
+
+    A test file that needs several real HTTP calls against a rate-limit-
+    protected `/auth/*` path (`_AUTH_RATE_LIMIT_PROTECTED_PREFIXES`) is
+    otherwise at the mercy of however much of this PACKAGE's shared 60s/10
+    budget earlier test files in the SAME `client` fixture's `scope="package"`
+    lifetime already spent (see `test_auth_router.py`'s own module docstring
+    for that accounting convention, and `test_password_reset_router.py`'s own
+    module docstring for a concrete case where that accounting was fragile:
+    it depends on wall-clock timing across files, not just call counts).
+    Calling this once, right before spending real budget, makes that test
+    deterministic instead of hoping the fixed window happened to roll over
+    by the time it runs -- same "test-harness bookkeeping, not part of the
+    real rate-limiting path itself" category as `_cleanup_committed_test_data`
+    above."""
+
+    async def _reset() -> None:
+        async with _committing_conn() as conn:
+            await conn.execute(
+                sa.text("DELETE FROM rate_counters WHERE dimension = 'auth_ip' AND subject = 'testclient'")
+            )
+
+    _run(_reset())
+
+
 def count_audit_rows(tenant_id: str, action: str) -> int:
     async def _count() -> int:
         async with _committing_conn() as conn:

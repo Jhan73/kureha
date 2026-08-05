@@ -66,16 +66,26 @@ from app.platform.inbound.api.routers import auth as auth_router
 from app.platform.inbound.api.routers import calendar_oauth as calendar_oauth_router
 from app.platform.inbound.api.routers import chat as chat_router
 from app.platform.inbound.api.routers import scheduling as scheduling_router
+from app.platform.inbound.api.routers import staff as staff_router
 from app.shared_kernel.clock import SystemClock
 
-# `/auth/login`/`/auth/refresh` are pre-auth by definition -- see
-# `routers/auth.py`'s module docstring. `/docs`/`/openapi.json`/`/redoc` are
-# FastAPI's own tooling routes, never behind a caller's session.
-_ACCESS_CONTROL_EXEMPT_PATH_PREFIXES = frozenset({"/auth/login", "/auth/refresh", "/docs", "/openapi.json", "/redoc"})
+# `/auth/login`/`/auth/refresh`/`/auth/password-reset` are pre-auth by
+# definition -- see `routers/auth.py`'s module docstring
+# (`/auth/password-reset` covers BOTH `password-reset/request` and
+# `password-reset/confirm`, prefix-matched, added this session). `/docs`/
+# `/openapi.json`/`/redoc` are FastAPI's own tooling routes, never behind a
+# caller's session.
+_ACCESS_CONTROL_EXEMPT_PATH_PREFIXES = frozenset(
+    {"/auth/login", "/auth/refresh", "/auth/password-reset", "/docs", "/openapi.json", "/redoc"}
+)
 
 # design.md §19 layer 3 / tasks.md task 5.3a: only the auth mint/refresh
-# routes are throttled by IP pre-login.
-_AUTH_RATE_LIMIT_PROTECTED_PREFIXES = frozenset({"/auth/login", "/auth/refresh"})
+# routes are throttled by IP pre-login. `/auth/password-reset` (added this
+# session) is exactly the same kind of pre-auth, brute-force/enumeration-
+# probing-prone route -- IP dimension only, no new account-dimension
+# limiter (see `routers/auth.py`'s own docstring for why that dimension
+# does not apply here).
+_AUTH_RATE_LIMIT_PROTECTED_PREFIXES = frozenset({"/auth/login", "/auth/refresh", "/auth/password-reset"})
 _AUTH_RATE_LIMIT_WINDOW_SECONDS = 60
 _AUTH_RATE_LIMIT_MAX_ATTEMPTS = 10
 
@@ -139,6 +149,7 @@ def create_app() -> FastAPI:
     app.include_router(scheduling_router.router)
     app.include_router(calendar_oauth_router.router)
     app.include_router(chat_router.router)
+    app.include_router(staff_router.router)
 
     audit_log = _ElevatedAuditLog()
 

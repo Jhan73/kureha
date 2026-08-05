@@ -43,6 +43,16 @@ one means the callback's CSRF check itself failed, before
 `ConnectPatientCalendar` is ever called). Task 10.1's own text requires this
 exact catalog entry and requires the callback route to audit rejections
 with it.
+
+`AUTH_CREDENTIAL_CREATED` (added this session, staff-invite/password-reset
+batch, flagged not silently added): `ProvisionStaffIdentity` is the FIRST
+real, working `users`+`user_credentials` provisioning path in this codebase
+(design.md §17 extension: new staff accounts are provisioned by
+admin/reception INVITING an email via Supabase, never by an admin setting a
+temporary password) -- no existing catalog entry represents "a new
+authenticatable identity/credential was created", as distinct from
+`STAFF_REGISTER` (the `staff_members` operational-registry row, a SEPARATE
+table/concern this new action does not duplicate or replace).
 """
 
 from dataclasses import dataclass, field
@@ -85,6 +95,7 @@ class AuditAction(str, Enum):
     LLM_BUDGET_EXCEEDED = "llm.budget_exceeded"
     APPOINTMENT_REMINDER_SENT = "appointment.reminder_sent"
     CALENDAR_OAUTH_CSRF_ATTEMPT = "calendar.oauth_csrf_attempt"
+    AUTH_CREDENTIAL_CREATED = "auth.credential_created"
 
 
 @dataclass(frozen=True, slots=True)

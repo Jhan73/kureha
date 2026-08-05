@@ -26,6 +26,7 @@ from app.composition_root import (
     PostgresStaffStatusAdapter,
     bootstrap_rbac_catalog_and_grants,
     build_affirmation_classifier,
+    build_auth_account_rate_limiter,
     build_chat_rate_limiter,
     build_create_shift,
     build_direct_response,
@@ -482,6 +483,50 @@ def test_build_chat_rate_limiter_returns_a_real_chat_rate_limiter(rls_conn) -> N
     limiter = build_chat_rate_limiter(rls_conn)
 
     assert isinstance(limiter, ChatRateLimiter)
+
+
+# ---------------------------------------------------------------------------
+# tasks.md task 10.2's own forward pointer, closed here:
+# `auth_rate_limit_middleware.py`'s module docstring deferred the
+# `auth_account` dimension explicitly to "a future Phase 10 handler [that]
+# can call [FixedWindowRateLimiter/PostgresRateCounterStore] directly with
+# dimension='auth_account'" -- `build_auth_account_rate_limiter` is that
+# wiring, consumed by `routers/auth.py`'s `login` handler.
+# ---------------------------------------------------------------------------
+
+
+def test_build_auth_account_rate_limiter_returns_a_real_fixed_window_limiter(db_conn) -> None:
+    """`rate_counters` has no RLS (design.md §4.4) -- uses `db_conn`
+    (elevated), same convention `test_postgres_rate_counter_store.py`'s own
+    docstring documents for every other adapter over this table, not
+    `rls_conn`."""
+    from app.platform.inbound.api.rate_limit.fixed_window_limiter import FixedWindowRateLimiter
+
+    limiter = build_auth_account_rate_limiter(db_conn)
+
+    assert isinstance(limiter, FixedWindowRateLimiter)
+
+
+async def test_build_auth_account_rate_limiter_actually_persists_counts_against_real_postgres(db_conn) -> None:
+    """Proves the wiring is real, not just type-correct: the SAME `subject`
+    accumulates across calls, and the `tenant_id` column is populated (the
+    account dimension, unlike the IP dimension, always has a real tenant at
+    check time). `rate_counters.tenant_id` is a real `uuid` column -- a
+    fixture-seeded `tenants.id`, not an arbitrary string, is required."""
+    tenant_id = await seed_tenant(db_conn)
+    limiter = build_auth_account_rate_limiter(db_conn)
+    subject = f"{tenant_id}:acct-limiter@example.com"
+
+    for _ in range(3):
+        allowed = await limiter.check(
+            dimension="auth_account", subject=subject, window_seconds=300, limit=5, tenant_id=tenant_id
+        )
+        assert allowed is True
+
+    denied = await limiter.check(
+        dimension="auth_account", subject=subject, window_seconds=300, limit=3, tenant_id=tenant_id
+    )
+    assert denied is False
 
 
 def test_build_chat_rate_limiter_shares_the_same_process_wide_token_bucket_registry(rls_conn) -> None:

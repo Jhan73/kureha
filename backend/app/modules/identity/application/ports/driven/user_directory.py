@@ -56,3 +56,44 @@ class UserDirectoryPort(Protocol):
         the identity module itself; see `Login`'s docstring for the caller
         contract this implies."""
         ...
+
+    async def provision_staff_user(
+        self,
+        tenant_id: str,
+        *,
+        site_id: str,
+        role: str,
+        email: str,
+        auth_subject: str,
+        email_verified: bool,
+        professional_id: str | None = None,
+    ) -> UserAccount:
+        """Creates a NEW `users` row + `user_credentials` row for a
+        newly-INVITED staff member (`ProvisionStaffIdentity`, staff-invite
+        batch) -- the FIRST real, working `UserDirectoryPort` provisioning
+        implementation in this codebase (`provision_patient_user` above
+        remains deliberately unimplemented, see its own docstring; this
+        method is a genuinely different, simpler case: no `patient_id`/DNI
+        collection, role is caller-supplied not defaulted).
+
+        `role` is a plain `str`, not `staff.domain.staff_member.
+        OperationalRole` -- the identity module MUST NOT import from the
+        `staff` business module (backend/AGENTS.md, import-linter's
+        "Business modules do not import each other directly" contract); the
+        caller (a platform-layer router, which MAY import both modules)
+        passes `OperationalRole.value` instead. Callers MUST supply
+        `professional_id` when `role == "professional"` --
+        `users`' own CHECK constraint (migration 8fc0dc6f958d: `CHECK (role
+        <> 'professional' OR professional_id IS NOT NULL)`) rejects the
+        INSERT otherwise; `ProvisionStaffIdentity` validates this UP FRONT
+        (a clean `ValidationError`) rather than letting a raw
+        `IntegrityError` leak through as an unmapped 500.
+
+        `tenant_id`/`site_id` are trusted as already-resolved (RBAC-gated,
+        authenticated caller) -- unlike `provision_patient_user`'s pre-auth
+        federated-signup context, this always runs INSIDE an authenticated
+        admin/reception request. See `PostgresUserDirectory`'s own
+        implementation docstring for the resulting, narrower connection
+        contract this one method uses (unlike every other method on this
+        port)."""
+        ...

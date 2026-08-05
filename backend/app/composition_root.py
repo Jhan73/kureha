@@ -61,6 +61,15 @@ instances total for a request that needs every seam, not seven). Every
 UNRESOLVED "LLM cannot invent a real database id from conversational text"
 gap this batch does NOT close (flagged there at length, not here).
 
+**Session 6 (tasks.md task 10.2's own forward pointer, `auth_account`
+rate-limit dimension):** `build_auth_account_rate_limiter` -- closes
+`auth_rate_limit_middleware.py`'s own module docstring's deliberately
+deferred `auth_account` dimension, wiring `FixedWindowRateLimiter` +
+`PostgresRateCounterStore` for `routers/auth.py`'s `login` handler to call
+directly (the attempted email is only readable inside that route handler,
+after body parsing -- see that middleware's docstring for the full "IP
+dimension only, deliberately" rationale this closes).
+
 The original four gaps this module closed in task 10.2's first session:
 
 1. **`runtime_engine`, never `engine`, for request-scoped work**
@@ -132,6 +141,7 @@ from app.modules.calendar.application.use_cases.connect_patient_calendar import 
 from app.modules.calendar.application.use_cases.sync_appointment_to_calendar import SyncAppointmentToCalendar
 from app.modules.governance.audit.adapters.outbound.postgres.audit_log import PostgresAuditLog
 from app.modules.governance.audit.application.ports.driven.audit_log import AuditLogPort
+from app.modules.governance.audit.domain.audit_entry import AuditEntry
 from app.modules.governance.consent.adapters.outbound.postgres.consent_registry import PostgresConsentRegistry
 from app.modules.governance.consent.application.use_cases.check_consent import CheckConsent
 from app.modules.governance.rbac.adapters.outbound.rbac.action_catalog import seed_action_catalog
@@ -149,9 +159,13 @@ from app.modules.identity.adapters.outbound.tokens.jwt_access_token_issuer impor
 from app.modules.identity.adapters.outbound.tokens.jwt_access_token_verifier import JwtAccessTokenVerifier
 from app.modules.identity.adapters.outbound.tokens.secure_secret_generator import SecureSecretGenerator
 from app.modules.identity.adapters.outbound.tokens.ttl_rotation_replay_cache import TTLRotationReplayCache
+from app.modules.identity.application.ports.driven.user_directory import UserDirectoryPort
+from app.modules.identity.application.use_cases.complete_password_reset import CompletePasswordReset
 from app.modules.identity.application.use_cases.login import Login
 from app.modules.identity.application.use_cases.logout import Logout
+from app.modules.identity.application.use_cases.provision_staff_identity import ProvisionStaffIdentity
 from app.modules.identity.application.use_cases.refresh_token import RefreshToken
+from app.modules.identity.application.use_cases.request_password_reset import RequestPasswordReset
 from app.modules.scheduling.adapters.outbound.postgres.availability_repository import PostgresAvailabilityRepository
 from app.modules.scheduling.adapters.outbound.postgres.scheduling_repository import PostgresSchedulingRepository
 from app.modules.scheduling.application.ports.driven.scheduling_repository import SchedulingRepositoryPort
@@ -169,10 +183,12 @@ from app.modules.staff.application.use_cases.register_staff import RegisterStaff
 from app.modules.staff.domain.staff_policy import StaffPolicy
 from app.modules.tenancy.adapters.outbound.postgres.tenant_repository import PostgresTenantRepository
 from app.modules.tenancy.application.use_cases.get_tenant import GetTenant
-from app.platform.inbound.api.access_control.role_scope import scoped_as_patient
+from app.platform.inbound.api.access_control.role_scope import scoped_as_admin, scoped_as_patient
 from app.platform.inbound.api.access_control.runtime_session import EngineRuntimeSession
+from app.platform.inbound.api.audit_safety import record_audit_best_effort
 from app.platform.inbound.api.rate_limit.adapters.postgres_rate_counter_store import PostgresRateCounterStore
 from app.platform.inbound.api.rate_limit.chat_rate_limiter import ChatRateLimiter
+from app.platform.inbound.api.rate_limit.fixed_window_limiter import FixedWindowRateLimiter
 from app.platform.inbound.api.rate_limit.llm_budget_guard import LlmBudgetGuard
 from app.platform.inbound.api.rate_limit.token_bucket import TokenBucketRegistry
 from app.platform.inbound.graph.adapters.anthropic_affirmation_classifier import AnthropicAffirmationClassifier
@@ -529,6 +545,212 @@ def build_refresh_token(conn: AsyncConnection) -> RefreshToken:
     )
 
 
+def build_request_password_reset(http_client: httpx.AsyncClient) -> RequestPasswordReset:
+    """Pre-auth, no connection needed at all -- `RequestPasswordReset` only
+    calls `AuthPort.start_password_reset` (a bare Supabase HTTP call, no
+    `users`/`user_credentials` lookup, see that use case's own docstring for
+    why). Mirrors `build_login`'s `SupabaseAuthAdapter` construction, minus
+    `service_role_key` (this call never needs admin privilege).
+
+    `redirect_url` is the bare frontend origin (`Settings.frontend_base_url`)
+    -- see `RequestPasswordReset`'s own docstring for why this can't target a
+    role-specific page yet (gap-closure fix, this session)."""
+    return RequestPasswordReset(
+        SupabaseAuthAdapter(
+            base_url=settings.supabase_url or "", api_key=settings.supabase_anon_key or "", http_client=http_client
+        ),
+        redirect_url=settings.frontend_base_url,
+    )
+
+
+class ElevatedIsolatedAuditLog:
+    """`IsolatedAuditLogPort` implementation: opens its OWN, freshly-opened
+    `open_elevated_connection()` for EVERY `record_best_effort` call, writes
+    through `PostgresAuditLog`, and swallows/logs any failure via
+    `record_audit_best_effort` -- generalizes `routers/auth.py`'s
+    `_check_and_audit_account_rate_limit` two-connection pattern into an
+    injectable port, so `CompletePasswordReset` (application layer) never
+    needs to import `AsyncConnection`/`open_elevated_connection`/this module
+    itself (hexagonal boundary -- and would be circular: this module already
+    imports `CompletePasswordReset`).
+
+    See `IsolatedAuditLogPort`'s own docstring (governance/audit module) for
+    the CONFIRMED hazard this closes: `CompletePasswordReset._deny_unmapped`
+    used to write its deny-audit entry through a plain `AuditLogPort` bound
+    to the SAME connection as the rest of that use case, with a caller-
+    supplied, never-validated `tenant_id` -- a bogus value made the audit
+    INSERT itself violate `audit_logs`' tenant FK, poisoning that SHARED
+    transaction and turning a clean 401 into an unhandled 500. A brand new
+    connection per call means that FK violation can only ever affect ITS
+    OWN, throwaway connection/transaction."""
+
+    async def record_best_effort(self, entry: AuditEntry) -> None:
+        async with open_elevated_connection() as conn:
+            await record_audit_best_effort(PostgresAuditLog(conn), entry)
+
+
+def build_complete_password_reset(conn: AsyncConnection, *, http_client: httpx.AsyncClient) -> CompletePasswordReset:
+    """`conn` MUST be an `open_elevated_connection()` connection -- same
+    pre-auth constraint as `build_login`/`build_refresh_token` above: the
+    caller has only a Supabase recovery/invite token, no Kureha session, so
+    no `app.*` GUC exists yet when this runs.
+
+    Deny-audit writes go through `ElevatedIsolatedAuditLog` (above), NOT a
+    plain `PostgresAuditLog(conn)` sharing `conn` with `user_directory`/
+    `session_store` -- see that class's own docstring and
+    `CompletePasswordReset`'s own module docstring for the CONFIRMED hazard
+    this closes (fresh-review finding, this batch)."""
+    clock = SystemClock()
+    return CompletePasswordReset(
+        SupabaseAuthAdapter(
+            base_url=settings.supabase_url or "", api_key=settings.supabase_anon_key or "", http_client=http_client
+        ),
+        PostgresUserDirectory(conn),
+        PostgresSessionStore(conn),
+        build_access_token_issuer(clock),
+        SecureSecretGenerator(),
+        ElevatedIsolatedAuditLog(),
+        clock,
+        access_token_ttl=timedelta(minutes=settings.identity_access_token_ttl_minutes),
+        refresh_token_ttl=timedelta(days=settings.identity_refresh_token_ttl_days),
+    )
+
+
+class AdminElevatedUserDirectory:
+    """Wraps a `UserDirectoryPort` so `provision_staff_user` alone runs with
+    `app.role` temporarily re-scoped to `'admin'` via `role_scope.py`'s
+    `scoped_as_admin` -- `users`' own RLS write policy (`users_admin_write`,
+    migration 613f9ea3526f) permits INSERT only for `app.role = 'admin'`
+    literally, which `reception` (a role `staff:register` ALSO grants,
+    `default_role_permissions.py`) does not satisfy. Confirmed empirically
+    THIS session: a real `reception` actor's own runtime connection raised
+    `InsufficientPrivilegeError` inserting into `users` without this
+    wrapper. Every other `UserDirectoryPort` method is passed through
+    UNCHANGED -- `find_by_email` reads `user_credentials`, whose own RLS
+    policy (`user_credentials_tenant`) has no role predicate at all, so no
+    elevation is needed there. See `scoped_as_admin`'s own docstring for why
+    this elevation is safe (RBAC already authorized this specific actor for
+    `staff:register` before this class is ever reached)."""
+
+    def __init__(self, inner: UserDirectoryPort, conn: AsyncConnection, *, restore_role: str) -> None:
+        self._inner = inner
+        self._conn = conn
+        self._restore_role = restore_role
+
+    async def find_by_email(self, tenant_id: str, email: str):
+        return await self._inner.find_by_email(tenant_id, email)
+
+    async def find_by_auth_subject(self, tenant_id: str, auth_subject: str):
+        return await self._inner.find_by_auth_subject(tenant_id, auth_subject)
+
+    async def get_by_id(self, tenant_id: str, user_id: str):
+        return await self._inner.get_by_id(tenant_id, user_id)
+
+    async def link_auth_subject(self, tenant_id: str, user_id: str, *, auth_subject: str, email_verified: bool):
+        return await self._inner.link_auth_subject(
+            tenant_id, user_id, auth_subject=auth_subject, email_verified=email_verified
+        )
+
+    async def provision_patient_user(
+        self, tenant_id: str, *, site_id: str, email: str, auth_subject: str, email_verified: bool
+    ):
+        return await self._inner.provision_patient_user(
+            tenant_id, site_id=site_id, email=email, auth_subject=auth_subject, email_verified=email_verified
+        )
+
+    async def provision_staff_user(
+        self,
+        tenant_id: str,
+        *,
+        site_id: str,
+        role: str,
+        email: str,
+        auth_subject: str,
+        email_verified: bool,
+        professional_id: str | None = None,
+    ):
+        async with scoped_as_admin(self._conn, restore_role=self._restore_role):
+            return await self._inner.provision_staff_user(
+                tenant_id,
+                site_id=site_id,
+                role=role,
+                email=email,
+                auth_subject=auth_subject,
+                email_verified=email_verified,
+                professional_id=professional_id,
+            )
+
+
+def build_provision_staff_identity(
+    conn: AsyncConnection, *, http_client: httpx.AsyncClient, restore_role: str
+) -> ProvisionStaffIdentity:
+    """`conn` MUST be an `open_runtime_connection()` connection with the
+    caller's `app.*` GUCs already set (RLS-scoped) -- UNLIKE `build_login`/
+    `build_complete_password_reset` above: staff provisioning always runs
+    INSIDE an already-authenticated, RBAC-checked (`staff:register`)
+    admin/reception request, never pre-auth. See
+    `PostgresUserDirectory.provision_staff_user`'s own docstring for the
+    full rationale for this narrower-than-usual `UserDirectoryPort`
+    connection contract.
+
+    `restore_role` MUST be the CALLING actor's own `TenantContext.role`
+    (`staff.py` router passes `ctx.role`) -- `AdminElevatedUserDirectory`
+    (above) needs it to restore the connection's `app.role` after the one
+    admin-elevated `users` INSERT, so every OTHER query this same connection
+    makes for the rest of the request keeps seeing the actor's real role.
+
+    `SupabaseAuthAdapter` here IS given `service_role_key` (unlike every
+    other `SupabaseAuthAdapter` construction in this module) -- `invite_user`
+    is the one admin-privileged Supabase call this codebase makes.
+
+    `invite_redirect_url` is `Settings.frontend_base_url` + `/staff/login`
+    -- see `ProvisionStaffIdentity`'s own docstring for why that page,
+    specifically (gap-closure fix, this session)."""
+    return ProvisionStaffIdentity(
+        SupabaseAuthAdapter(
+            base_url=settings.supabase_url or "",
+            api_key=settings.supabase_anon_key or "",
+            http_client=http_client,
+            service_role_key=settings.supabase_service_role_key or "",
+        ),
+        AdminElevatedUserDirectory(PostgresUserDirectory(conn), conn, restore_role=restore_role),
+        PostgresAuditLog(conn),
+        invite_redirect_url=f"{settings.frontend_base_url}/staff/login",
+    )
+
+
+def build_auth_account_rate_limiter(conn: AsyncConnection) -> FixedWindowRateLimiter:
+    """Resolves `auth_rate_limit_middleware.py`'s own module docstring's
+    deliberately-deferred `auth_account` dimension gap: "the `auth_account`
+    dimension... needs the attempted account/email, which only the
+    login/refresh ROUTE HANDLER can read... `FixedWindowRateLimiter`/
+    `PostgresRateCounterStore` are dimension-agnostic, so a future Phase 10
+    handler can call them directly with `dimension='auth_account'` for that
+    check." `routers/auth.py`'s `login` handler is that caller.
+
+    A plain factory, agnostic about which connection it is given (matching
+    every other `build_*` factory in this module) -- but its caller,
+    `routers/auth.py`'s `login` handler, deliberately does NOT reuse
+    `Login`'s own `open_elevated_connection()` for this. **Confirmed
+    empirically, not just theorized:** the original plan called for
+    reusing that one connection, and a first pass doing exactly that
+    silently broke the whole feature -- `Login.with_password` raises
+    `InvalidCredentialsError` for every wrong-password attempt (the
+    overwhelmingly common case this limiter exists to catch), and that
+    exception, propagating out of the SAME `conn.begin()` transaction the
+    rate-limit increment had just run inside, rolled the increment back
+    together with it. A wrong password therefore never actually
+    accumulated against the limit. `routers/auth.py`'s
+    `_check_and_audit_account_rate_limit` runs this factory against its
+    OWN, separately-committed `open_elevated_connection()` instead, the
+    same "isolate the counter/audit write from whatever the request itself
+    does afterward" pattern `app/main.py`'s `_ElevatedRateCounterStore`
+    already uses for the IP dimension and `calendar_oauth.py`'s
+    `_audit_csrf_attempt` uses for its audit write -- see that router's own
+    module docstring for the full account."""
+    return FixedWindowRateLimiter(PostgresRateCounterStore(conn), clock=SystemClock())
+
+
 def build_logout(conn: AsyncConnection) -> Logout:
     """`conn` MUST be an `open_runtime_connection()` connection with the
     caller's `app.*` GUCs already set -- unlike `Login`/`RefreshToken`,
@@ -784,6 +1006,7 @@ def build_chat_rate_limiter(conn: AsyncConnection) -> ChatRateLimiter:
 
 
 __all__ = [
+    "AdminElevatedUserDirectory",
     "AppointmentSnapshotPort",
     "PostgresAppointmentSnapshotAdapter",
     "PostgresStaffStatusAdapter",
@@ -793,10 +1016,12 @@ __all__ = [
     "build_access_token_issuer",
     "build_access_token_verifier",
     "build_affirmation_classifier",
+    "build_auth_account_rate_limiter",
     "build_authorize_action",
     "build_cancel_appointment",
     "build_chat_rate_limiter",
     "build_check_consent",
+    "build_complete_password_reset",
     "build_connect_patient_calendar",
     "build_create_shift",
     "build_deactivate_staff",
@@ -806,11 +1031,13 @@ __all__ = [
     "build_google_calendar_adapter",
     "build_intent_classifier",
     "build_login",
+    "build_provision_staff_identity",
     "build_register_staff",
     "build_logout",
     "build_permission_service",
     "build_refresh_token",
     "build_reminder_planner",
+    "build_request_password_reset",
     "build_reschedule_appointment",
     "build_runtime_session",
     "build_schedule_appointment",

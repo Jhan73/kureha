@@ -50,6 +50,22 @@ class Settings(BaseSettings):
     supabase_url: str | None = None
     supabase_anon_key: str | None = None
 
+    # Supabase Auth admin-privileged operations (design.md §17.2, this
+    # session's staff-invite/password-reset batch): a DISTINCT, MORE
+    # PRIVILEGED credential than `supabase_anon_key` above -- required for
+    # `SupabaseAuthAdapter.invite_user` (GoTrue's `POST /auth/v1/invite`
+    # admin endpoint, which creates a user server-side and triggers the
+    # invite email) and any other admin-only GoTrue call this module adds in
+    # the future. NEVER exposed to the frontend (unlike the anon key, which
+    # is safe to ship client-side by design) -- this key bypasses GoTrue's
+    # own row-level authorization and can act as any user, so it only ever
+    # lives in this backend process's environment. Same "obviously-fake dev
+    # default" convention as `identity_access_token_secret` would use, but
+    # left `None` here (matching `supabase_anon_key`'s own convention just
+    # above) since there is no safe placeholder that would not risk being
+    # mistaken for a real key if ever copy-pasted into a non-local `.env`.
+    supabase_service_role_key: str | None = None
+
     # Kureha's own access-JWT signing secret (ADR-15) -- the dev default is
     # intentionally obviously-fake ("dev_only_..."), matching the convention
     # already used for `database_url`'s dev password; production MUST
@@ -109,6 +125,19 @@ class Settings(BaseSettings):
     # covers `next dev`'s own port; production MUST override with the real
     # CloudFront/S3 origin (design.md §20, not yet provisioned).
     cors_allowed_origins: str = "http://localhost:3000"
+
+    # Canonical frontend origin used to build the `redirect_to` links sent
+    # with Supabase's invite/password-reset emails (gap-closure fix, this
+    # session -- see `SupabaseAuthAdapter`'s own docstring: without an
+    # explicit `redirect_to`, GoTrue silently falls back to whatever "Site
+    # URL" happens to be configured in the Supabase Dashboard, an implicit,
+    # easy-to-drift-between-environments dependency; see also
+    # `docs/supabase-setup.md` §6). Deliberately a SEPARATE setting from
+    # `cors_allowed_origins` above -- that one may hold multiple
+    # comma-separated origins for CORS, this needs exactly ONE canonical
+    # value to build a URL from. Dev default matches `cors_allowed_origins`'
+    # own; production MUST override with the real deployed frontend origin.
+    frontend_base_url: str = "http://localhost:3000"
 
 
 @lru_cache

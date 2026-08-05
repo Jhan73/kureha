@@ -1,9 +1,17 @@
 """Identity-module error hierarchy (design.md §17), subclassing
 `shared_kernel.errors.NotAuthorizedError` the same way `rbac`'s
 `ActionNotPermittedError` does -- authn/session failures are a form of "not
-authorized", never surfaced as a generic 500."""
+authorized", never surfaced as a generic 500.
 
-from app.shared_kernel.errors import NotAuthorizedError, NotFoundError
+`EmailAlreadyRegisteredError` (added this session, staff-invite batch):
+subclasses `ConflictError`, not `NotAuthorizedError` -- an email collision on
+`user_credentials` is a state conflict (design.md §21.1's `validation`
+category, `ConflictError`'s own docstring: "conflicts with existing domain
+state"), not an authn/authz failure. No new `errors.py` `_MAPPINGS` entry
+needed: that module's MRO-walk resolution already covers any `ConflictError`
+subclass via the generic `ConflictError` mapping (409, `conflict`)."""
+
+from app.shared_kernel.errors import ConflictError, NotAuthorizedError, NotFoundError
 
 
 class InvalidCredentialsError(NotAuthorizedError):
@@ -35,6 +43,16 @@ class RefreshReuseDetectedError(NotAuthorizedError):
     past the 30s grace period (design.md §17.4) -- a stolen-token signal.
     The entire rotation chain has already been revoked by the time this is
     raised."""
+
+
+class EmailAlreadyRegisteredError(ConflictError):
+    """`ProvisionStaffIdentity` found an existing `user_credentials` row for
+    the invited email within this tenant (`UserDirectoryPort.find_by_email`)
+    -- distinct from `InvalidCredentialsError`'s anti-enumeration posture:
+    THIS check runs behind an authenticated, RBAC-gated admin/reception
+    request (`staff:register`), not a pre-auth attempt an anonymous attacker
+    controls, so confirming "this email is already registered" is not an
+    enumeration leak here."""
 
 
 class SessionNotFoundError(NotFoundError):
