@@ -1,6 +1,6 @@
 import uuid
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
 
 import pytest
 import sqlalchemy as sa
@@ -13,7 +13,7 @@ async def expect_violation(
     conn: AsyncConnection,
     exc_type: type[Exception] = IntegrityError,
     match: str | None = None,
-) -> AsyncIterator[None]:
+) -> AsyncGenerator[None]:
     """Wraps the `pytest.raises(...) + conn.begin_nested()` pair repeated
     across every constraint-violation test: the savepoint keeps the test's
     outer transaction (used for per-test isolation, see conftest.py's

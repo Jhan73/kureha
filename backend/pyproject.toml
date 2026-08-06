@@ -26,11 +26,21 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "basedpyright>=1.39.9",
     "import-linter>=2.13",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "watchfiles>=1.2.0",
 ]
+
+[tool.basedpyright]
+include = ["app", "tests"]
+exclude = ["**/migrations", "**/.venv"]
+pythonVersion = "3.13"
+typeCheckingMode = "basic"
+reportDeprecated = "warning"
+reportMissingImports = "none"
+reportMissingTypeStubs = "none"
 
 [tool.importlinter]
 root_packages = ["app"]

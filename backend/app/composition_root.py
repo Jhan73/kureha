@@ -1,6 +1,6 @@
 """Wires adapters into use cases. The only module allowed to cross module boundaries."""
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import timedelta
 
@@ -102,14 +102,14 @@ from app.shared_kernel.clock import ClockPort, SystemClock
 
 
 @asynccontextmanager
-async def open_runtime_connection() -> AsyncIterator[AsyncConnection]:
+async def open_runtime_connection() -> AsyncGenerator[AsyncConnection]:
     async with runtime_engine.connect() as conn:
         async with conn.begin():
             yield conn
 
 
 @asynccontextmanager
-async def open_elevated_connection() -> AsyncIterator[AsyncConnection]:
+async def open_elevated_connection() -> AsyncGenerator[AsyncConnection]:
     async with engine.connect() as conn:
         async with conn.begin():
             yield conn
@@ -120,7 +120,7 @@ def _checkpointer_psycopg_dsn() -> str:
 
 
 @asynccontextmanager
-async def open_checkpointer_connection(tenant_id: str) -> AsyncIterator[psycopg.AsyncConnection]:
+async def open_checkpointer_connection(tenant_id: str) -> AsyncGenerator[psycopg.AsyncConnection]:
     async with await psycopg.AsyncConnection.connect(_checkpointer_psycopg_dsn(), autocommit=True) as conn:
         async with conn.cursor() as cur:
             await cur.execute(f"SET app.tenant_id = '{tenant_id}'")

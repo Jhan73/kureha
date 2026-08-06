@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 import httpx
@@ -66,7 +66,7 @@ async def _resolve_live_actor(user_id: str) -> LiveActor | None:
 
 
 @asynccontextmanager
-async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+async def _lifespan(app: FastAPI) -> AsyncGenerator[None]:
     app.state.http_client = httpx.AsyncClient(timeout=10.0)
     async with open_runtime_connection() as conn:
         await bootstrap_rbac_catalog_and_grants(conn)

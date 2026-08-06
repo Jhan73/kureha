@@ -1,4 +1,3 @@
-import asyncio
 import uuid
 
 import httpx
@@ -6,7 +5,11 @@ import httpx
 from app.main import app
 from app.platform.inbound.api.access_control.dependencies import get_http_client
 from app.platform.inbound.api.routers.auth import PasswordResetRequest, request_password_reset
-from tests.platform.inbound.api.routers.conftest import reset_auth_ip_rate_limit_budget, seed_reception_actor
+from tests.platform.inbound.api.routers.conftest import (
+    _run,
+    reset_auth_ip_rate_limit_budget,
+    seed_reception_actor,
+)
 
 
 class _RecordingHttpClient:
@@ -28,7 +31,7 @@ class _RecordingHttpClient:
 def test_password_reset_request_always_returns_success_regardless_of_whether_the_email_exists() -> None:
     http_client = _RecordingHttpClient()
 
-    async def _run() -> None:
+    async def _body() -> None:
         await request_password_reset(
             PasswordResetRequest(tenant_id="t1", email="existing@example.com"), http_client=http_client
         )
@@ -36,7 +39,7 @@ def test_password_reset_request_always_returns_success_regardless_of_whether_the
             PasswordResetRequest(tenant_id="t1", email="never-registered@example.com"), http_client=http_client
         )
 
-    asyncio.run(_run())  # must not raise for either email
+    _run(_body())  # must not raise for either email
 
     assert [call["json"]["email"] for call in http_client.calls] == [
         "existing@example.com",

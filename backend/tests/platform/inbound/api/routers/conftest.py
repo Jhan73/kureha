@@ -1,6 +1,6 @@
 import asyncio
 import sys
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import timedelta
 
@@ -9,10 +9,6 @@ import sqlalchemy as sa
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncConnection
 from sqlalchemy.pool import NullPool
-
-# psycopg async needs a selector event loop on Windows (ProactorEventLoop raises InterfaceError).
-if sys.platform == "win32":
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 from app.config import settings
 from app.db import create_engine, engine as _shared_engine, runtime_engine as _shared_runtime_engine
@@ -25,6 +21,14 @@ from tests.rls.helpers import seed_appointment as _seed_appointment_row
 from tests.rls.helpers import seed_consent as _seed_consent_row
 from tests.rls.helpers import seed_consent_policy as _seed_consent_policy_row
 from tests.schema.helpers import make_patient, make_professional, make_site, make_tenant, make_user, make_user_credentials
+
+
+def _run(coro):
+    # psycopg async needs SelectorEventLoop on Windows (Proactor raises InterfaceError).
+    if sys.platform == "win32":
+        return asyncio.run(coro, loop_factory=asyncio.SelectorEventLoop)
+    return asyncio.run(coro)
+
 
 async def _cleanup_committed_test_data() -> None:
     engine = create_engine(poolclass=NullPool)
@@ -43,11 +47,11 @@ def client() -> TestClient:
     # HTTPS base URL so Secure cookies from OAuth authorize are stored by the jar.
     with TestClient(app, base_url="https://testserver", raise_server_exceptions=False) as c:
         yield c
-    asyncio.run(_cleanup_committed_test_data())
+    _run(_cleanup_committed_test_data())
 
 
 @asynccontextmanager
-async def _committing_conn() -> AsyncIterator[AsyncConnection]:
+async def _committing_conn() -> AsyncGenerator[AsyncConnection]:
     engine = create_engine(poolclass=NullPool)
     try:
         async with engine.connect() as conn:
@@ -55,10 +59,6 @@ async def _committing_conn() -> AsyncIterator[AsyncConnection]:
                 yield conn
     finally:
         await engine.dispose()
-
-
-def _run(coro):
-    return asyncio.run(coro)
 
 
 async def _make_tenant_with_rbac(conn: AsyncConnection) -> str:
