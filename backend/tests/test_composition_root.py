@@ -42,6 +42,7 @@ from app.modules.governance.rbac.adapters.outbound.rbac.action_catalog import AC
 from app.modules.governance.rbac.adapters.outbound.rbac.default_role_permissions import (
     DEFAULT_DEV_ROLE_PERMISSIONS,
 )
+from app.platform.inbound.api.system_tenant import SYSTEM_TENANT_ID
 from app.shared_kernel.tenant_context import TenantContext
 from tests.rls.helpers import (
     seed_appointment,
@@ -284,6 +285,21 @@ async def _staff_member_id_for(rls_conn, professional_id: str) -> str:
         sa.text("SELECT id FROM staff_members WHERE professional_id = :p"), {"p": professional_id}
     )
     return str(result.scalar_one())
+
+
+async def test_bootstrap_rbac_catalog_and_grants_skips_the_suspended_system_tenant(rls_conn) -> None:
+    """Regression test for discovery/system-tenant-row-missing: the migrated
+    system tenant row (`SYSTEM_TENANT_ID`, `status='suspended'`) must never
+    receive `role_permissions` grants -- it is not a real, operable tenant."""
+    await bootstrap_rbac_catalog_and_grants(rls_conn)
+
+    await set_app_context(rls_conn, tenant_id=SYSTEM_TENANT_ID, role="admin")
+    granted_count = (
+        await rls_conn.execute(
+            sa.text("SELECT count(*) FROM role_permissions WHERE tenant_id = :t"), {"t": SYSTEM_TENANT_ID}
+        )
+    ).scalar_one()
+    assert granted_count == 0
 
 
 async def test_bootstrap_rbac_catalog_and_grants_is_idempotent(rls_conn) -> None:

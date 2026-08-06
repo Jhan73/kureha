@@ -200,7 +200,9 @@ def build_sync_appointment_to_calendar(
 
 async def bootstrap_rbac_catalog_and_grants(conn: AsyncConnection) -> None:
     await seed_action_catalog(conn)
-    tenant_rows = await conn.execute(text("SELECT id FROM tenants"))
+    # `status='active'` excludes the system tenant (SYSTEM_TENANT_ID, always
+    # 'suspended') -- it is not a real tenant and must never get RBAC grants.
+    tenant_rows = await conn.execute(text("SELECT id FROM tenants WHERE status = 'active'"))
     tenant_ids = [str(row[0]) for row in tenant_rows]
     for tenant_id in tenant_ids:
         await conn.execute(text(f"SET LOCAL app.tenant_id = '{tenant_id}'"))
