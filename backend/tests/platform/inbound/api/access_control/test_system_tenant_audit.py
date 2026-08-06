@@ -1,7 +1,7 @@
-"""Regression test for `discovery/system-tenant-row-missing`: SYSTEM_TENANT_ID
-must exist as a real `tenants` row, otherwise `audit_logs`'s FK to `tenants(id)`
-silently swallows the write (via `record_audit_best_effort`) for any deny that
-has no real tenant to attribute to (unmapped identity, missing claims)."""
+"""SYSTEM_TENANT_ID must exist as a real `tenants` row, otherwise `audit_logs`'s
+FK to `tenants(id)` silently swallows the write (via `record_audit_best_effort`)
+for any deny that has no real tenant to attribute to (unmapped identity, missing
+claims)."""
 
 import sqlalchemy as sa
 from starlette.requests import Request

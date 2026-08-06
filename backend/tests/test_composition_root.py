@@ -288,9 +288,8 @@ async def _staff_member_id_for(rls_conn, professional_id: str) -> str:
 
 
 async def test_bootstrap_rbac_catalog_and_grants_skips_the_suspended_system_tenant(rls_conn) -> None:
-    """Regression test for discovery/system-tenant-row-missing: the migrated
-    system tenant row (`SYSTEM_TENANT_ID`, `status='suspended'`) must never
-    receive `role_permissions` grants -- it is not a real, operable tenant."""
+    """The system tenant row (`SYSTEM_TENANT_ID`, `status='suspended'`) must
+    never receive `role_permissions` grants -- it is not a real, operable tenant."""
     await bootstrap_rbac_catalog_and_grants(rls_conn)
 
     await set_app_context(rls_conn, tenant_id=SYSTEM_TENANT_ID, role="admin")
