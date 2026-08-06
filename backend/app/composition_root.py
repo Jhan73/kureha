@@ -233,7 +233,7 @@ def build_login(conn: AsyncConnection, *, http_client: httpx.AsyncClient) -> Log
     clock = SystemClock()
     return Login(
         SupabaseAuthAdapter(
-            base_url=settings.supabase_url or "", api_key=settings.supabase_anon_key or "", http_client=http_client
+            base_url=settings.supabase_url or "", api_key=settings.supabase_publishable_key or "", http_client=http_client
         ),
         PostgresUserDirectory(conn),
         PostgresSessionStore(conn),
@@ -264,7 +264,7 @@ def build_refresh_token(conn: AsyncConnection) -> RefreshToken:
 def build_request_password_reset(http_client: httpx.AsyncClient) -> RequestPasswordReset:
     return RequestPasswordReset(
         SupabaseAuthAdapter(
-            base_url=settings.supabase_url or "", api_key=settings.supabase_anon_key or "", http_client=http_client
+            base_url=settings.supabase_url or "", api_key=settings.supabase_publishable_key or "", http_client=http_client
         ),
         redirect_url=settings.frontend_base_url,
     )
@@ -280,7 +280,7 @@ def build_complete_password_reset(conn: AsyncConnection, *, http_client: httpx.A
     clock = SystemClock()
     return CompletePasswordReset(
         SupabaseAuthAdapter(
-            base_url=settings.supabase_url or "", api_key=settings.supabase_anon_key or "", http_client=http_client
+            base_url=settings.supabase_url or "", api_key=settings.supabase_publishable_key or "", http_client=http_client
         ),
         PostgresUserDirectory(conn),
         PostgresSessionStore(conn),
@@ -349,9 +349,9 @@ def build_provision_staff_identity(
     return ProvisionStaffIdentity(
         SupabaseAuthAdapter(
             base_url=settings.supabase_url or "",
-            api_key=settings.supabase_anon_key or "",
+            api_key=settings.supabase_publishable_key or "",
             http_client=http_client,
-            service_role_key=settings.supabase_service_role_key or "",
+            secret_key=settings.supabase_secret_key or "",
         ),
         AdminElevatedUserDirectory(PostgresUserDirectory(conn), conn, restore_role=restore_role),
         PostgresAuditLog(conn),

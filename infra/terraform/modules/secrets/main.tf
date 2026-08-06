@@ -61,22 +61,21 @@ resource "aws_secretsmanager_secret_version" "google_oauth" {
   }
 }
 
-# NOTE: `backend/app/config.py`'s real fields are `supabase_url` /
-# `supabase_anon_key` -- design.md §20.2's prose says "service key IdP",
-# but the actual Settings contract (source of truth for env var names) only
-# has an anon key today. Matching the real code contract here, not the
-# design prose -- a pre-existing, minor design.md/code wording mismatch,
-# not introduced by this task.
+# Matches backend/app/config.py: supabase_url, supabase_publishable_key, supabase_secret_key.
 resource "aws_secretsmanager_secret" "supabase" {
   name                    = "${var.name_prefix}/supabase"
-  description             = "Supabase Auth (IdP) project URL + anon key (design.md ADR-14). Real value set out-of-band."
+  description             = "Supabase Auth IdP URL + publishable/secret API keys (current keys, not legacy anon/service_role)."
   recovery_window_in_days = var.recovery_window_in_days
   tags                    = var.tags
 }
 
 resource "aws_secretsmanager_secret_version" "supabase" {
-  secret_id     = aws_secretsmanager_secret.supabase.id
-  secret_string = jsonencode({ url = "CHANGE_ME_OUT_OF_BAND", anon_key = "CHANGE_ME_OUT_OF_BAND" })
+  secret_id = aws_secretsmanager_secret.supabase.id
+  secret_string = jsonencode({
+    url              = "CHANGE_ME_OUT_OF_BAND"
+    publishable_key  = "CHANGE_ME_OUT_OF_BAND"
+    secret_key       = "CHANGE_ME_OUT_OF_BAND"
+  })
 
   lifecycle {
     ignore_changes = [secret_string]

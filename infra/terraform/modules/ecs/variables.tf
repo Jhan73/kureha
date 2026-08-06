@@ -121,7 +121,7 @@ variable "google_oauth_secret_arn" {
 }
 
 variable "supabase_secret_arn" {
-  description = "JSON secret with url/anon_key keys (modules/secrets)."
+  description = "JSON secret with url/publishable_key/secret_key (modules/secrets)."
   type        = string
 }
 

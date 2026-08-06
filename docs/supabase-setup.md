@@ -1,71 +1,409 @@
-# Supabase Setup for Kureha
+# Supabase setup for Kureha
 
-Step-by-step guide to provision and configure the Supabase project that backs Kureha's `AuthPort` (identity module). This is an operational runbook, not an architecture doc — for the *why*, see `openspec/changes/kureha-mvp/design.md` §17.2 (ADR-14) and §17 (ADR-15).
+This guide walks you through every value needed so Kureha can use Supabase Auth as its identity provider (IdP).
 
-## Scope: what Supabase is (and isn't) used for
+You do **not** need to change application source code for a normal setup. You fill the [Supabase Dashboard](https://supabase.com/dashboard) and the repo-root file `.env.local`. The backend reads those env vars via `backend/app/config.py` (`Settings`) and passes them into `SupabaseAuthAdapter`.
 
-Supabase is used **standalone, as an IdP only** — Auth (GoTrue), nothing else:
+Architecture background (why Supabase is IdP-only): `openspec/changes/kureha-mvp/design.md` §17.
 
-- Handles credential mechanics: email/password hashing, "Sign in with Google" federation, anti brute-force, invite emails, password-reset emails.
-- **Never** stores clinical data. Kureha's own database (RLS, `users`, `patients`, `appointments`, ...) lives entirely in AWS RDS and never migrates to Supabase Postgres.
-- Kureha does **not** forward Supabase's own JWT to clients. `backend/app/modules/identity/adapters/outbound/auth/supabase_auth_adapter.py` is the *only* code in the system that talks to the Supabase API; on a successful Supabase authentication, Kureha mints its **own** short-lived access token + opaque refresh token (ADR-15) so revocation/logout never depends on Supabase's admin API.
-- The frontend never calls Supabase directly — there is no `@supabase/supabase-js` client anywhere in `frontend/`. All auth traffic goes through Kureha's own `POST /auth/*` routes.
+---
 
-Because of that standalone posture, the usual reason to pick Supabase (`auth.uid()` inside Postgres RLS policies) does not apply here — see ADR-14 for the full tradeoff. Keep that in mind: **do not** wire Supabase Postgres, Supabase RLS, or the Supabase JS client into this project. If a future task seems to need that, it contradicts the current architecture decision — flag it, don't just add it.
+## Before you start
 
-## Prerequisites
+| Fact | Detail |
+|---|---|
+| What Supabase is used for | Auth only (email/password, invites, password reset, optional Google ID-token verify) |
+| What Supabase is **not** used for | Postgres, Storage, Realtime, Edge Functions, `@supabase/supabase-js` in the frontend |
+| Where secrets live | Repo root `.env.local` (gitignored). Template: `.env.local.example` |
+| Where code reads them | `backend/app/config.py` → `composition_root.py` → `supabase_auth_adapter.py` |
+| Frontend | Never talks to Supabase. No Supabase env vars in `frontend/` |
+| Environments | Use **separate** Supabase projects for local/dev and production |
 
-- A Supabase account (free tier is sufficient for local dev/staging — see "Free tier considerations" below).
-- Access to edit this repo's `.env.local` (gitignored; copy from `.env.local.example` if you haven't).
+Create `.env.local` once if missing:
+
+```bash
+cp .env.local.example .env.local
+```
+
+After any change to `.env.local`, **restart the backend** (settings load at process start).
+
+---
+
+## Quick path
+
+1. Create a Supabase project.
+2. Copy **Project URL**, **publishable key**, and **secret key** into `.env.local`.
+3. Set **Site URL** and **Redirect URLs** in the Dashboard; set `FRONTEND_BASE_URL` in `.env.local`.
+4. Email provider: on; public sign-up: off.
+5. (Optional) Google provider.
+6. (Required for real invites) Custom SMTP.
+7. Restart backend → run the checklist at the end.
+
+---
+
+## How to read each section
+
+Every value below uses the same shape:
+
+- **How to get it** — clicks in the Dashboard (or Google Cloud).
+- **Format** — what a correct value looks like (and what to avoid).
+- **Where to put it** — `.env.local`, Dashboard only, or both.
+- **Used by** — which Kureha behavior needs it.
+
+---
 
 ## 1. Create the project
 
-Dashboard: [supabase.com/dashboard](https://supabase.com/dashboard) → **New project** → pick an organization, name (e.g. `kureha-dev`), a database password, and a region. `Kureha625@*`
+1. Open [supabase.com/dashboard](https://supabase.com/dashboard) and sign in.
+2. Click **New project**.
+3. Fill the form:
 
-> The project's own Postgres database is provisioned automatically but **Kureha never uses it** (see Scope above) — you can ignore it entirely once the project is up. Only the Auth service matters.
+| Dashboard field | What to enter |
+|---|---|
+| Organization | Your org (create one if needed) |
+| Project name | e.g. `kureha-dev` or `kureha-prod` |
+| Database password | Strong password; store in a password manager. Kureha **never** connects to this database |
+| Region | Closest to your users / API |
 
-design.md §22.6 calls out that dev and production must be **separate Supabase projects** — don't reuse a dev project's credentials for staging/prod.
+4. Wait until the project is ready.
 
-## 2. Get your API credentials
+Ignore the project’s Postgres after creation. Only Auth settings matter for Kureha.
 
-Dashboard → **Project Settings → API** (newer projects show this under **API Keys**, with `publishable`/`secret` naming replacing the older `anon`/`service_role` naming — both key pairs work identically for Kureha's purposes; if your project shows the new names, `publishable` = `anon`, `secret` = `service_role`).
+---
 
-Copy three values into `.env.local` at the repo root:
+## 2. `SUPABASE_URL`
 
-| Dashboard value | `.env.local` variable | `Settings` field (`backend/app/config.py`) |
+### How to get it
+
+1. Open your project in the Dashboard.
+2. Open **Connect** (project home) **or** **Project Settings → Data API**.
+3. Copy **Project URL**.
+
+Direct pattern: `https://supabase.com/dashboard/project/<project-ref>/settings/api`
+
+### Format
+
+| | Example |
+|---|---|
+| Correct | `https://abcdefghijklmnop.supabase.co` |
+| Wrong | Missing `https://`, trailing path (`/rest/v1`), or `http://` on cloud projects |
+
+`<project-ref>` is the short id in the hostname (also visible in the browser URL while you are inside the project).
+
+### Where to put it
+
+| Place | Action |
+|---|---|
+| `.env.local` (repo root) | `SUPABASE_URL=https://<project-ref>.supabase.co` |
+| Application code | **No change.** Mapped to `Settings.supabase_url` in `backend/app/config.py` |
+| Frontend | Not used |
+
+### Used by
+
+Every Supabase Auth HTTP call (login, invite, recover, password update). Base URL for `SupabaseAuthAdapter`.
+
+---
+
+## 3. `SUPABASE_PUBLISHABLE_KEY`
+
+Use the **current** publishable key. Do **not** use Legacy `anon` JWT keys ([API keys guide](https://supabase.com/docs/guides/getting-started/api-keys); legacy keys deprecated by end of 2026).
+
+### How to get it
+
+1. **Project Settings → API Keys**  
+   `https://supabase.com/dashboard/project/<project-ref>/settings/api-keys`
+2. Open the **API Keys** tab (not **Legacy API Keys**).
+3. If there is no publishable key yet, click **Create new API Keys**.
+4. Copy the **Publishable** key (`sb_publishable_...`).
+
+### Format
+
+| | Example |
+|---|---|
+| Correct | `sb_publishable_eyJ...` (starts with `sb_publishable_`) |
+| Wrong | Long JWT from **Legacy API Keys** labeled `anon` |
+| Wrong | A `sb_secret_...` key (that is the secret key) |
+
+### Where to put it
+
+| Place | Action |
+|---|---|
+| `.env.local` | `SUPABASE_PUBLISHABLE_KEY=sb_publishable_...` |
+| Application code | **No change.** Mapped to `Settings.supabase_publishable_key` |
+| Frontend | **Never.** Not a public Next.js env var in this repo |
+
+### Used by
+
+Password login, start password-reset, Google ID-token verify. Sent as the `apikey` header on those GoTrue calls.
+
+---
+
+## 4. `SUPABASE_SECRET_KEY`
+
+Elevated key. Backend only. Never commit, never put in the frontend, never paste into chat logs.
+
+Use the **current** secret key. Do **not** use Legacy `service_role` JWT keys.
+
+### How to get it
+
+1. Same page: **Project Settings → API Keys** → **API Keys** tab.
+2. Under **Secret keys**, copy (or create) a secret key (`sb_secret_...`).
+3. Reveal/copy carefully; treat it like a root password.
+
+### Format
+
+| | Example |
+|---|---|
+| Correct | `sb_secret_...` (starts with `sb_secret_`) |
+| Wrong | Legacy `service_role` JWT from **Legacy API Keys** |
+| Wrong | The publishable key |
+
+### Where to put it
+
+| Place | Action |
+|---|---|
+| `.env.local` | `SUPABASE_SECRET_KEY=sb_secret_...` |
+| Application code | **No change.** Mapped to `Settings.supabase_secret_key` → `SupabaseAuthAdapter(secret_key=...)` |
+| Frontend | **Forbidden** |
+| Production (AWS) | Secrets Manager JSON key `secret_key` → ECS env `SUPABASE_SECRET_KEY` (see `infra/terraform/modules/secrets` and `ecs`) |
+
+### Used by
+
+Staff invite only: `POST /staff/register` → `invite_user` → GoTrue `POST /auth/v1/invite` with `apikey` + `Authorization: Bearer <secret>`.
+
+---
+
+## 5. `FRONTEND_BASE_URL`
+
+Not a Supabase secret. It is the public origin of the Kureha SPA. The backend builds invite / password-reset `redirect_to` URLs from it.
+
+### How to get it
+
+You choose it; it must match how users open the frontend:
+
+| Environment | Value |
+|---|---|
+| Local (`next dev`) | `http://localhost:3000` |
+| Production | Your real SPA origin, e.g. `https://app.example.com` |
+
+No trailing slash.
+
+### Format
+
+| | Example |
+|---|---|
+| Correct | `http://localhost:3000` |
+| Correct | `https://app.example.com` |
+| Wrong | `http://localhost:3000/` (trailing slash) |
+| Wrong | `localhost:3000` (missing scheme) |
+
+### Where to put it
+
+| Place | Action |
+|---|---|
+| `.env.local` | `FRONTEND_BASE_URL=http://localhost:3000` |
+| Application code | **No change.** Mapped to `Settings.frontend_base_url` |
+| Also required | Same origin should appear in `CORS_ALLOWED_ORIGINS` (comma-separated list in `.env.local` / `Settings.cors_allowed_origins`) |
+| Supabase Dashboard | The concrete redirect URLs derived from this value must be allow-listed (next section) |
+
+### Used by
+
+| Flow | `redirect_to` the backend sends |
+|---|---|
+| Staff invite | `{FRONTEND_BASE_URL}/staff/login` |
+| Password reset request | `{FRONTEND_BASE_URL}` |
+
+---
+
+## 6. Site URL (Dashboard only)
+
+Default redirect when GoTrue has no usable `redirect_to`. Still set it correctly so fallbacks are safe.
+
+### How to get it / where to click
+
+**Authentication → URL Configuration**  
+`https://supabase.com/dashboard/project/<project-ref>/auth/url-configuration`
+
+### Format / what to enter
+
+| Environment | Site URL |
+|---|---|
+| Local | `http://localhost:3000` |
+| Production | `https://app.example.com` |
+
+Same rules as `FRONTEND_BASE_URL` (scheme + host + optional port; no trailing slash).
+
+### Where to put it
+
+| Place | Action |
+|---|---|
+| Supabase Dashboard | Field **Site URL** |
+| `.env.local` / code | Not stored as its own env var; keep it equal to `FRONTEND_BASE_URL` |
+
+### Used by
+
+Fallback for Auth email links. Official docs: [Redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls).
+
+---
+
+## 7. Redirect URLs (Dashboard only)
+
+Allow-list of URLs GoTrue may redirect to after invite / recovery links. If a URL is missing here, Supabase ignores `redirect_to` and falls back to Site URL.
+
+### How to get it / where to click
+
+Same page: **Authentication → URL Configuration** → **Redirect URLs** → add each URL → save.
+
+### Format / what to enter
+
+Add **exact** URLs Kureha sends (minimum):
+
+**Local**
+
+```text
+http://localhost:3000
+http://localhost:3000/staff/login
+```
+
+Optional for local experiments: `http://localhost:3000/**`
+
+**Production**
+
+```text
+https://app.example.com
+https://app.example.com/staff/login
+```
+
+### Where to put it
+
+| Place | Action |
+|---|---|
+| Supabase Dashboard | Redirect URLs list only |
+| `.env.local` | Not a separate variable; keep `FRONTEND_BASE_URL` in sync with these entries |
+| Application code | **No change.** Adapter already sends `redirect_to` |
+
+### Used by
+
+Invite and password-reset emails. Without these entries, redirects break silently.
+
+### Note
+
+Dedicated “set password” / “confirm reset” pages that consume the token from the URL are still a separate frontend gap. Allow-list the URLs anyway so GoTrue accepts them.
+
+---
+
+## 8. Email provider (Dashboard only)
+
+### How to get it / where to click
+
+**Authentication → Providers → Email**
+
+### What to set
+
+| Setting | Value | Why |
 |---|---|---|
-| Project URL | `SUPABASE_URL` | `supabase_url` |
-| `anon` / `publishable` key | `SUPABASE_ANON_KEY` | `supabase_anon_key` |
-| `service_role` / `secret` key | `SUPABASE_SERVICE_ROLE_KEY` | `supabase_service_role_key` |
+| Enable Email provider | **On** | Password login, invites, resets |
+| Confirm email | Leave default unless you have a reason | Invite link handles staff confirmation |
+| Allow new users to sign up | **Off** (recommended) | Kureha never uses public Supabase signup; staff come from `POST /staff/register` |
 
-**`SUPABASE_SERVICE_ROLE_KEY` is admin-privileged — it bypasses GoTrue's own row-level authorization and can act as any user.** It is read only by the backend process (used exclusively by `SupabaseAuthAdapter.invite_user`, the staff-invite flow). Never expose it to the frontend, never commit it — `.env.local` is already gitignored, and there is no safe placeholder value for it (unlike other secrets in this repo, `config.py` deliberately leaves its default as `None` rather than an "obviously fake" dev string, to avoid it being mistaken for a real key if ever copy-pasted).
+### Where to put it
 
-## 3. Email/password provider
+Dashboard only. No `.env.local` entry. No code change.
 
-Dashboard → **Authentication → Providers → Email**. Enabled by default — leave it on, Kureha's `/auth/login` (password grant) and `/staff/register` (invite) both depend on it.
+### Used by
 
-**Recommended hardening, not strictly required for correctness:** under **Authentication → Providers → Email**, consider disabling **"Allow new users to sign up"**. Kureha never calls Supabase's self-serve signup endpoint — staff accounts are created only via `POST /staff/register` → `SupabaseAuthAdapter.invite_user` (admin-triggered invite), and patient self-registration isn't implemented yet (`PostgresUserDirectory.provision_patient_user` is a deliberate `NotImplementedError`, see that method's docstring). If someone signs up directly against Supabase outside of Kureha's own flow, `Login.with_password`/`with_google` will still deny them (`UnmappedIdentityError`, no matching `users` row in Kureha's own DB) — so this isn't a security hole today, but disabling self-serve signup removes the dangling capability entirely rather than relying on that second check.
+All email/password Auth flows in Kureha.
 
-## 4. Google federated login ("Sign in with Google")
+---
 
-Dashboard → **Authentication → Providers → Google**.
+## 9. Google provider (optional)
 
-1. In [Google Auth Platform](https://console.cloud.google.com/auth/clients) → **Create OAuth client ID** → application type **Web application**.
-2. **Authorized JavaScript origins**: your frontend's origin(s) — `http://localhost:3000` for local dev, plus the real domain once deployed.
-3. **Authorized redirect URIs**: your Supabase project's callback URL, shown on the same Google provider page in the Supabase Dashboard (`https://<project-ref>.supabase.co/auth/v1/callback`; for local Supabase CLI dev it's `http://127.0.0.1:54321/auth/v1/callback`).
-4. Copy the generated **Client ID** and **Client Secret** into the Google provider page in the Supabase Dashboard, and enable the provider.
+Only if you need “Sign in with Google”. Kureha verifies a Google **ID token** on the server; the browser must obtain that token (e.g. Google Identity Services) and send it to Kureha’s login API — not to Supabase JS.
 
-Kureha's `SupabaseAuthAdapter.verify_federated` calls `POST /auth/v1/token?grant_type=id_token` with `{"provider": "google", "id_token": ...}` — this is the same underlying call `supabase-js`'s `signInWithIdToken` makes, so a frontend using Google's own Sign-In button (One Tap, GSI button, etc.) to obtain a raw Google ID token and posting it to Kureha's own login route is enough; no `supabase-js` dependency is needed client-side.
+This Google OAuth client is **not** the Calendar sync client (`CALENDAR_GOOGLE_*`).
 
-**Hard boundary, don't confuse the two:** this is a *separate* OAuth client from the one used for Google Calendar sync (`CalendarSyncPort`/`calendar_oauth.py`) — different scopes (`openid email` vs `calendar.events`), different token stores, different consent screens. Never reuse credentials or tokens between the two (ADR-11/12, design.md §17.2).
+### A. Values from Google Cloud
 
-## 5. Custom SMTP (required before real usage — see "Free tier considerations")
+#### How to get them
 
-Dashboard → **Project Settings → Authentication → SMTP Settings** (or via the Management API):
+1. Open [Google Auth Platform → Clients](https://console.cloud.google.com/auth/clients).
+2. **Create OAuth client ID** → application type **Web application**.
+3. Fill:
+
+| Field | Local | Production |
+|---|---|---|
+| Name | e.g. `Kureha Auth Dev` | e.g. `Kureha Auth Prod` |
+| Authorized JavaScript origins | `http://localhost:3000` | `https://app.example.com` |
+| Authorized redirect URIs | `https://<project-ref>.supabase.co/auth/v1/callback` | Same pattern for the prod project ref |
+
+4. Copy **Client ID** and **Client Secret**.
+
+#### Format
+
+| Value | Format |
+|---|---|
+| Client ID | `….apps.googleusercontent.com` |
+| Client Secret | Opaque string from Google Cloud (not a Supabase key) |
+
+#### Where to put them
+
+| Place | Action |
+|---|---|
+| Supabase Dashboard | Paste into Google provider (next step) |
+| Kureha `.env.local` | **Not** as `SUPABASE_*`. Do not reuse as `CALENDAR_GOOGLE_*` |
+| Application code | No Supabase-side code change for enabling the provider |
+
+### B. Enable in Supabase
+
+#### How to get it / where to click
+
+**Authentication → Providers → Google** → enable → paste Client ID + Client Secret → save.
+
+#### Where to put it
+
+Dashboard only for provider enablement.
+
+### Used by
+
+`SupabaseAuthAdapter.verify_federated` → `POST /auth/v1/token?grant_type=id_token`.
+
+---
+
+## 10. Custom SMTP (Dashboard — required before real invites)
+
+Built-in Supabase mail is capped (~2 emails/hour). Staff invite and password reset need real delivery → configure SMTP early.
+
+### How to get it / where to click
+
+**Project Settings → Authentication** → **SMTP Settings** (label may say Auth / SMTP).
+
+Get host/user/password from your email provider (Resend, SendGrid, Mailgun, SES, …).
+
+### Format / fields
+
+| Field | Example format |
+|---|---|
+| Sender email | `no-reply@your-domain.example` (verified domain at your provider) |
+| Sender name | `Kureha` |
+| Host | Provider SMTP hostname |
+| Port | Usually `587` (STARTTLS); follow provider docs |
+| Username | SMTP user or API user |
+| Password | SMTP password or API key |
+
+### Where to put it
+
+| Place | Action |
+|---|---|
+| Supabase Dashboard | SMTP Settings form |
+| `.env.local` / Kureha code | **Not stored.** Supabase sends the mail |
+
+### Optional Management API
+
+Personal access token: [Account → Access Tokens](https://supabase.com/dashboard/account/tokens).
 
 ```bash
-export SUPABASE_ACCESS_TOKEN="<personal access token from supabase.com/dashboard/account/tokens>"
-export PROJECT_REF="<your-project-ref>"
+export SUPABASE_ACCESS_TOKEN="<personal-access-token>"
+export PROJECT_REF="<project-ref>"
 
 curl -X PATCH "https://api.supabase.com/v1/projects/$PROJECT_REF/config/auth" \
   -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
@@ -73,46 +411,66 @@ curl -X PATCH "https://api.supabase.com/v1/projects/$PROJECT_REF/config/auth" \
   -d '{
     "smtp_admin_email": "no-reply@your-domain.example",
     "smtp_host": "smtp.your-provider.example",
-    "smtp_port": 587,
+    "smtp_port": "587",
     "smtp_user": "your-smtp-user",
     "smtp_pass": "your-smtp-password",
     "smtp_sender_name": "Kureha"
   }'
 ```
 
-Any SMTP-compatible provider works (Resend, SendGrid, Mailgun, etc.). Pick one with a free tier generous enough for staff invites + password resets during dev/pilot.
+---
 
-## 6. Redirect URLs for invite / password-reset emails
+## 11. Full `.env.local` example (local)
 
-Dashboard → **Authentication → URL Configuration**: add the frontend origin (`FRONTEND_BASE_URL`, see the `.env.local` reference below) to **Redirect URLs**, so GoTrue accepts the explicit `redirect_to` Kureha now sends (see below) instead of silently ignoring it and falling back to Site URL.
-
-**Fixed in code, but the destinations are interim placeholders — read before shipping to staff.** `SupabaseAuthAdapter.invite_user`/`start_password_reset` now send an explicit `redirect_to` on both GoTrue calls, built from `Settings.frontend_base_url`:
-
-- Staff invite (`POST /staff/register`) → `{FRONTEND_BASE_URL}/staff/login` — the closest real, existing page today.
-- Password reset (`POST /auth/password-reset/request`) → bare `{FRONTEND_BASE_URL}` — this use case is never tenant/role-scoped, so there's no signal to pick `/login` vs `/staff/login` (see `RequestPasswordReset`'s own docstring).
-
-**Neither a dedicated "complete your invite" page nor a password-reset-confirm page exists on the frontend yet** — both redirects land on a page that can't actually consume the Supabase token in the URL. Building those pages (and pointing these two redirects at them) is a real, separate, still-open gap — flagged in `ProvisionStaffIdentity`'s and `RequestPasswordReset`'s own docstrings, not solved here.
-
-## 7. Verify against a real project before relying on this in production
-
-`supabase_auth_adapter.py`'s own module docstring flags that `invite_user`'s and `complete_password_reset`'s request/response shapes were written against GoTrue's documented API, **never smoke-tested against a real Supabase project** (this dev environment has no reachable Supabase instance). Specifically unverified:
-
-- Whether `POST /auth/v1/invite`'s response is the bare `User` object (assumed) or wrapped as `{"user": ...}`.
-- Whether `PUT /auth/v1/user` (password-reset confirm) responds the same way.
-
-Before the first real staff invite goes out: run both flows once against your actual Supabase project and confirm the adapter parses the real response without a `KeyError`.
-
-## Free tier considerations
-
-The free tier itself is generous enough for this project's scale (50,000 MAU, 2 active projects — see design.md ADR-14's own "gratis hasta decenas de miles de MAU" assumption). The one real blocker is **email**: Supabase's built-in mailer is capped at **2 emails/hour** and is explicitly not meant for production use. Since `/staff/register` and `/auth/password-reset/request` both depend on an email actually being delivered, **step 5 (custom SMTP) is required**, not optional, the moment you need more than two invites/resets in the same hour — which will happen the first time more than one staff member gets provisioned in a sitting.
-
-## `.env.local` reference
+After copying from `.env.local.example`, the Supabase-related block should look like:
 
 ```bash
-SUPABASE_URL=https://<project-ref>.supabase.co
-SUPABASE_ANON_KEY=<anon/publishable key>
-SUPABASE_SERVICE_ROLE_KEY=<service_role/secret key>
+SUPABASE_URL=https://abcdefghijklmnop.supabase.co
+SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+SUPABASE_SECRET_KEY=sb_secret_...
 FRONTEND_BASE_URL=http://localhost:3000
 ```
 
-All four are read once at process start via `backend/app/config.py`'s `Settings` (pydantic-settings, `env_file=".env.local"`). No frontend env vars are needed — the frontend never talks to Supabase directly. `FRONTEND_BASE_URL` is backend-only, used to build the `redirect_to` links in §6 above.
+Then restart the backend.
+
+**You do not edit Python/TS source** for these values in normal setup. Wiring already exists:
+
+| Env var | Settings field | Consumed in |
+|---|---|---|
+| `SUPABASE_URL` | `supabase_url` | `SupabaseAuthAdapter(base_url=...)` |
+| `SUPABASE_PUBLISHABLE_KEY` | `supabase_publishable_key` | `SupabaseAuthAdapter(api_key=...)` |
+| `SUPABASE_SECRET_KEY` | `supabase_secret_key` | `SupabaseAuthAdapter(secret_key=...)` (invites) |
+| `FRONTEND_BASE_URL` | `frontend_base_url` | Invite / reset `redirect_to` builders in `composition_root.py` |
+
+---
+
+## 12. Checklist
+
+- [ ] Separate Supabase project for this environment (not shared with prod).
+- [ ] `SUPABASE_URL` is `https://<ref>.supabase.co`.
+- [ ] `SUPABASE_PUBLISHABLE_KEY` starts with `sb_publishable_` (not legacy `anon` JWT).
+- [ ] `SUPABASE_SECRET_KEY` starts with `sb_secret_` (not legacy `service_role` JWT).
+- [ ] `FRONTEND_BASE_URL` matches Site URL (no trailing slash).
+- [ ] Redirect URLs include `{FRONTEND_BASE_URL}` and `{FRONTEND_BASE_URL}/staff/login`.
+- [ ] Email provider on; public sign-up off.
+- [ ] (If Google) provider enabled; Cloud origins/callback correct.
+- [ ] Custom SMTP saved before bulk invites.
+- [ ] Backend restarted after editing `.env.local`.
+- [ ] `POST /auth/login` works for a Kureha-mapped user.
+- [ ] `POST /staff/register` sends invite mail.
+- [ ] `POST /auth/password-reset/request` delivers mail.
+
+Before first production invite: run invite + password-reset confirm once against the real project and confirm the adapter parses live JSON (no `KeyError` on `id` / `email`).
+
+---
+
+## Related files
+
+| File | Role |
+|---|---|
+| `.env.local.example` | Template for env names |
+| `backend/app/config.py` | `Settings` field definitions |
+| `backend/app/composition_root.py` | Wires adapter + redirect URLs |
+| `backend/app/modules/identity/adapters/outbound/auth/supabase_auth_adapter.py` | GoTrue HTTP calls |
+| `infra/terraform/modules/secrets` | Prod Secrets Manager shape (`url`, `publishable_key`, `secret_key`) |
+| `docs/tenant-admin-provisioning.md` | Staff invite product flow |

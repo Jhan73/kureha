@@ -5,8 +5,8 @@ from app.modules.identity.adapters.outbound.auth.supabase_auth_adapter import Su
 from app.modules.identity.domain.errors import InvalidCredentialsError
 
 _BASE_URL = "https://project-ref.supabase.co"
-_API_KEY = "test-anon-key"
-_SERVICE_ROLE_KEY = "test-service-role-key"
+_API_KEY = "sb_publishable_test"
+_SECRET_KEY = "sb_secret_test"
 
 
 def _adapter(handler) -> SupabaseAuthAdapter:
@@ -14,10 +14,10 @@ def _adapter(handler) -> SupabaseAuthAdapter:
     return SupabaseAuthAdapter(base_url=_BASE_URL, api_key=_API_KEY, http_client=client)
 
 
-def _adapter_with_service_role(handler) -> SupabaseAuthAdapter:
+def _adapter_with_secret(handler) -> SupabaseAuthAdapter:
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     return SupabaseAuthAdapter(
-        base_url=_BASE_URL, api_key=_API_KEY, http_client=client, service_role_key=_SERVICE_ROLE_KEY
+        base_url=_BASE_URL, api_key=_API_KEY, http_client=client, secret_key=_SECRET_KEY
     )
 
 
@@ -149,7 +149,7 @@ async def test_start_password_reset_does_not_raise_even_if_supabase_reports_an_e
 
 
 @pytest.mark.asyncio
-async def test_invite_user_posts_to_the_admin_invite_endpoint_with_service_role_credentials() -> None:
+async def test_invite_user_posts_to_the_admin_invite_endpoint_with_secret_key_credentials() -> None:
     captured = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -162,15 +162,15 @@ async def test_invite_user_posts_to_the_admin_invite_endpoint_with_service_role_
             json={"id": "supabase-user-invited", "email": "invitee@example.com", "email_confirmed_at": None},
         )
 
-    adapter = _adapter_with_service_role(handler)
+    adapter = _adapter_with_secret(handler)
     result = await adapter.invite_user("invitee@example.com", redirect_to="https://app.example.com/staff/login")
 
     import json
 
     assert captured["method"] == "POST"
     assert captured["path"] == "/auth/v1/invite"
-    assert captured["headers"]["apikey"] == _SERVICE_ROLE_KEY
-    assert captured["headers"]["authorization"] == f"Bearer {_SERVICE_ROLE_KEY}"
+    assert captured["headers"]["apikey"] == _SECRET_KEY
+    assert captured["headers"]["authorization"] == f"Bearer {_SECRET_KEY}"
     assert json.loads(captured["body"]) == {
         "email": "invitee@example.com",
         "redirect_to": "https://app.example.com/staff/login",
@@ -186,7 +186,7 @@ async def test_invite_user_raises_on_a_non_2xx_response() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(400, json={"error": "email_exists"})
 
-    adapter = _adapter_with_service_role(handler)
+    adapter = _adapter_with_secret(handler)
 
     with pytest.raises(httpx.HTTPStatusError):
         await adapter.invite_user("dup@example.com", redirect_to="https://app.example.com/staff/login")

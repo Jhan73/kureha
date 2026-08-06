@@ -27,10 +27,11 @@ class Settings(BaseSettings):
     aws_default_region: str = "us-east-1"
 
     # Supabase Auth (GoTrue) only — Kureha DB stays separate.
+    # Current Dashboard keys: publishable + secret (not legacy anon/service_role JWTs).
     supabase_url: str | None = None
-    supabase_anon_key: str | None = None
-    # Admin key for invite_user; never expose to the frontend.
-    supabase_service_role_key: str | None = None
+    supabase_publishable_key: str | None = None
+    # Elevated secret for invite_user; never expose to the frontend.
+    supabase_secret_key: str | None = None
 
     # Access-JWT secret; production must override (dev default is fake).
     identity_access_token_secret: str = "dev_only_access_token_secret_change_me"
