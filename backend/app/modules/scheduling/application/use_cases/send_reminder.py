@@ -1,23 +1,3 @@
-"""`SendReminder` use case (design.md §5.3/§9, tasks.md task 7.3, spec
-`appointment-scheduling` -> "Reminders and Confirmations"): `authorize(ctx,
-action)` first, then attempt delivery through `ReminderChannelPort`.
-
-**Uses `appointment:view`, not a dedicated `appointment:reminder` action.**
-Design.md §5.1's action-key catalog only lists `appointment:{create,
-reschedule,cancel,cancel_bulk,view}` -- there is no reminder-specific entry.
-Sending a reminder does not mutate the appointment; it is closest in spirit
-to reading/notifying about one already-visible appointment, so this reuses
-`appointment:view` rather than inventing an ungoverned new action key.
-Flagged here, not silently decided, in case a future review wants a
-dedicated `appointment:reminder` action instead.
-
-**Channel failures never propagate.** Spec: "Channel port failure does not
-break scheduling flows" -- this use case treats BOTH a `False` return AND an
-unhandled exception from `ReminderChannelPort.send` as "delivery failed,
-still a successful use-case execution", per the port's own docstring. Every
-attempt is logged to the audit trail regardless of outcome (spec: "Every
-delivery attempt MUST be logged to the audit trail")."""
-
 from app.modules.governance.audit.application.ports.driven.audit_log import AuditLogPort
 from app.modules.governance.audit.domain.audit_entry import AuditAction, AuditActorType, AuditEntry
 from app.modules.governance.rbac.application.use_cases.authorize_action import AuthorizeAction

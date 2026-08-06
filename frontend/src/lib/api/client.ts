@@ -11,11 +11,6 @@ export class ApiError extends Error {
   }
 }
 
-/**
- * Exported for reuse by other API modules (e.g. `scheduling.ts`) that call
- * `authorizedFetch` directly instead of the bare `fetch` wrapper this file
- * uses for the unauthenticated `/auth/*` routes.
- */
 export async function parseJsonOrThrow<T>(response: Response): Promise<T> {
   if (!response.ok) {
     let message = response.statusText || "Request failed";
@@ -23,7 +18,6 @@ export async function parseJsonOrThrow<T>(response: Response): Promise<T> {
       const body = await response.json();
       message = body?.user_message ?? body?.detail ?? message;
     } catch {
-      // Body wasn't JSON (or was empty) -- fall back to statusText.
     }
     throw new ApiError(response.status, message);
   }
@@ -79,14 +73,7 @@ export interface AuthorizedFetchDeps {
   onAuthFailure: () => void;
 }
 
-/**
- * Builds a `fetch` wrapper that attaches `Authorization: Bearer <token>` and,
- * on a 401, attempts exactly ONE silent refresh-then-retry. Two near-
- * simultaneous 401s share a single in-flight refresh call (the backend's
- * refresh-token rotation means a second concurrent call with the same,
- * now-consumed refresh token would otherwise only succeed by luck of the
- * 30-second rotation grace period -- see design.md §17.4 ADR-15).
- */
+/** One silent refresh-then-retry on 401; concurrent 401s share one in-flight refresh (rotation). */
 export function createAuthorizedFetch(deps: AuthorizedFetchDeps): AuthorizedFetch {
   let inFlightRefresh: Promise<TokenResponse | null> | null = null;
 
@@ -138,8 +125,7 @@ export function createAuthorizedFetch(deps: AuthorizedFetchDeps): AuthorizedFetc
 
     const retried = await requestWith(path, init, tokens.access_token);
     if (retried.status === 401) {
-      // Refresh succeeded but the retried request is still unauthorized --
-      // do not loop into a second refresh, this is a real auth failure.
+      // Still 401 after refresh: real auth failure, never retry refresh again.
       deps.onAuthFailure();
     }
     return retried;

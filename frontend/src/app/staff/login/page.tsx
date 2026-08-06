@@ -13,21 +13,6 @@ import {
 const NOT_STAFF_MESSAGE =
   "This portal is for staff accounts only (reception, professional, or admin).";
 
-/**
- * Staff login (tasks.md 15.1). Reuses the same `/auth/login` endpoint and
- * `useAuth().login()` call the patient `/login` page uses (`auth.py` has no
- * staff-specific login route -- `role` alone, already returned by
- * `TokenResponse`, is what distinguishes a staff account from a patient
- * one). Presentational shell is `CredentialsLoginCard`, shared with the
- * patient login page (see that component's own docstring).
- *
- * **Role check happens directly on `login()`'s resolved value, in the event
- * handler -- no `useEffect` needed.** `login()` (tasks.md 15.1's own
- * `AuthContextValue` change, `auth-context.tsx`) resolves with the fresh
- * `AuthUser` itself, sidestepping the stale-closure hazard of reading this
- * component's own `user` from context immediately after `await
- * login(...)` (which would still reflect the PRE-login render).
- */
 export default function StaffLoginPage() {
   const { login, logout } = useAuth();
   const router = useRouter();

@@ -112,10 +112,6 @@ describe("ReminderPage", () => {
     expect(await screen.findByText("Appointment not found")).toBeInTheDocument();
   });
 
-  // Spec `patient-self-service-portal` -> "Consent Gate Enforced in Portal"
-  // (verify-report #414 gap closure) -- see schedule/__tests__/page.test.tsx
-  // for the full rationale; same generic ApiError passthrough, pinned here
-  // for the reminder action specifically.
   it("blocks submission and shows the consent message when the backend denies for missing consent", async () => {
     mockAuth({});
     vi.mocked(sendReminder).mockRejectedValueOnce(

@@ -1,8 +1,3 @@
-"""Task 11.5: `persist_and_audit` node -- dispatches `proposed_action` to
-the real use case (fakes injected via the `dispatch` override, never real
-Postgres in this file). Audit already happens INSIDE each use case in the
-SAME transaction (ADR-3) -- this node does NOT write its own audit entry."""
-
 import pytest
 
 from app.platform.inbound.graph.nodes.persist_and_audit import UnroutableActionError, make_persist_and_audit_node
@@ -74,9 +69,6 @@ async def test_dispatches_to_the_matching_use_case_with_payload_as_kwargs() -> N
 
 @pytest.mark.asyncio
 async def test_captures_result_with_no_id_attribute_as_none() -> None:
-    """`SendReminder.execute` returns a plain `bool` -- no uniform result
-    shape across the 4-8 dispatchable actions (see this module's own
-    docstring)."""
     use_case = _FakeUseCase(result=True)
     dispatch = {"appointment:view": lambda conn: use_case}
     node = make_persist_and_audit_node(object(), dispatch=dispatch)

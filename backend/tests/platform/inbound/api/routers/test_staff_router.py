@@ -1,22 +1,3 @@
-"""`POST /staff/register` (staff-invite batch): the new invite-based staff
-registration route. Proves, against the real FastAPI app + real Postgres:
-
-(a) a reception actor can register a new staff member end-to-end -- a
-    Supabase invite is triggered (faked via `httpx.MockTransport`, same seam
-    `test_auth_router.py` uses), a `users`/`user_credentials` row is
-    created, and the EXISTING `RegisterStaff` use case creates the
-    `staff_members` row, all in one request;
-(b) a duplicate email (already registered in this tenant) is rejected 409,
-    WITHOUT ever calling Supabase's invite endpoint;
-(c) an actor without `staff:register` (a patient) is denied 403, WITHOUT
-    creating any `users`/`user_credentials`/`staff_members` row.
-
-`/staff/register` is NOT one of `app/main.py`'s
-`_AUTH_RATE_LIMIT_PROTECTED_PREFIXES` -- unlike `/auth/login`/`/auth/refresh`/
-`/auth/password-reset`, calls here do not share that IP-dimension budget, so
-this file's call count is not constrained by it (see `conftest.py`'s own
-module docstring for the hazard this note is disambiguating)."""
-
 import json
 
 import httpx

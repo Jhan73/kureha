@@ -1,12 +1,3 @@
-"""Task 4.1/4.3: `PostgresUserDirectory` -- `UserDirectoryPort` adapter over
-`users` JOIN `user_credentials` (design.md §17.3, migration 9f1c4a7b2e3d).
-
-Uses `db_conn` (the `app_user`/elevated connection), NOT `rls_conn` -- this
-adapter is wired, in the composition root, against `app.db.engine` (see
-`UserDirectoryPort`'s docstring for why: pre-auth resolution runs before any
-`app.*` GUC exists, the same elevated-connection contract Alembic itself
-uses)."""
-
 import pytest
 from tests.schema.helpers import make_professional, make_site, make_tenant, make_user, make_user_credentials
 
@@ -170,16 +161,6 @@ async def test_provision_staff_user_with_email_verified_sets_the_verification_ti
 async def test_provision_staff_user_raises_a_clean_conflict_when_the_email_is_already_registered(
     db_conn, tenant_id
 ) -> None:
-    """Targeted repro of the duplicate-email race (fix, CONFIRMED
-    fresh-review finding): `ProvisionStaffIdentity.execute`'s own
-    `find_by_email` pre-check cannot catch a genuine RACE where two
-    concurrent registrations for the same email both pass the pre-check
-    before either INSERT runs -- calling this adapter method directly,
-    twice, with the SAME email bypasses that pre-check entirely and reaches
-    the INSERT both times, exactly like the losing side of a real race
-    would. Also proves the SAVEPOINT (`begin_nested()`) protects the
-    connection: `find_by_email` still works normally afterward, proving the
-    caught `IntegrityError` did not poison the whole transaction."""
     site_id = await make_site(db_conn, tenant_id)
     directory = PostgresUserDirectory(db_conn)
 

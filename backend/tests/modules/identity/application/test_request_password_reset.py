@@ -1,9 +1,3 @@
-"""`RequestPasswordReset` use case: a thin wrapper over
-`AuthPort.start_password_reset`, kept as its own use case (rather than the
-router touching the adapter/port directly) for consistency with every other
-`/auth/*` route's convention (`Login`/`RefreshToken`/`Logout`, all real use
-cases wired via `composition_root.py`'s `build_*` functions)."""
-
 import pytest
 
 from app.modules.identity.application.use_cases.request_password_reset import RequestPasswordReset

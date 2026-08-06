@@ -1,9 +1,3 @@
-"""Task 9.4: `SyncAppointmentToCalendar` use case (design.md §7.2, ADR-11) --
-best-effort, non-transactional: NEVER raises on a Google API failure, only
-records `sync_status='failed'` and audits. Fakes only, no DB. Callers
-(a future Phase 10 orchestrator, not built) invoke this AFTER the
-appointment's own transaction has already committed."""
-
 import dataclasses
 from datetime import datetime, timezone
 

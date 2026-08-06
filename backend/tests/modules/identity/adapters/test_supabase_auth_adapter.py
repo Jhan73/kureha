@@ -1,9 +1,3 @@
-"""Task 4.2: `SupabaseAuthAdapter` -- `AuthPort` impl over Supabase Auth
-(GoTrue)'s REST API (design.md §17.2/ADR-14). No real network: `httpx`'s
-`MockTransport` stands in for Supabase's HTTP surface, asserting on the
-exact request shape (method/path/body/headers) and mapping Supabase's
-response shapes to `AuthnResult`/`InvalidCredentialsError`."""
-
 import httpx
 import pytest
 
@@ -147,11 +141,6 @@ async def test_start_password_reset_posts_to_recover_endpoint() -> None:
 
 @pytest.mark.asyncio
 async def test_start_password_reset_does_not_raise_even_if_supabase_reports_an_error() -> None:
-    """Supabase's own /recover already returns 200 regardless of whether the
-    email exists (anti-enumeration, matches spec `user-authentication` ->
-    "Wrong password rejected without enumeration"); this adapter does not
-    add a failure mode on top of that."""
-
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(429, json={"error": "rate_limited"})
 
@@ -161,10 +150,6 @@ async def test_start_password_reset_does_not_raise_even_if_supabase_reports_an_e
 
 @pytest.mark.asyncio
 async def test_invite_user_posts_to_the_admin_invite_endpoint_with_service_role_credentials() -> None:
-    """GoTrue Admin API assumption, flagged/UNVERIFIED (see adapter's own
-    module docstring): `POST /auth/v1/invite`, authenticated with the
-    SERVICE ROLE key (both `apikey` and `Authorization: Bearer`), never the
-    anon key -- this is an admin-privileged operation."""
     captured = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -198,14 +183,6 @@ async def test_invite_user_posts_to_the_admin_invite_endpoint_with_service_role_
 
 @pytest.mark.asyncio
 async def test_invite_user_raises_on_a_non_2xx_response() -> None:
-    """Deliberately NOT a domain error (unlike `verify_password`/
-    `verify_federated`'s anti-enumeration `InvalidCredentialsError`) --
-    inviting is an admin-triggered operation, not an authn attempt an
-    attacker controls; a failure here is a genuine, unexpected infra/config
-    problem (bad service-role key, Supabase outage, ...), correctly left to
-    fall through to the generic 500 `internal_error` envelope rather than
-    being reinterpreted as a domain-specific outcome."""
-
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(400, json={"error": "email_exists"})
 
@@ -217,12 +194,6 @@ async def test_invite_user_raises_on_a_non_2xx_response() -> None:
 
 @pytest.mark.asyncio
 async def test_complete_password_reset_puts_the_new_password_using_the_recovery_token_as_bearer() -> None:
-    """GoTrue Admin API assumption, flagged/UNVERIFIED (see adapter's own
-    module docstring): `PUT /auth/v1/user`, authenticated with the
-    RECOVERY/INVITE access token as `Authorization: Bearer` (proves identity
-    the same way any authenticated GoTrue call does), `apikey` stays the
-    ANON key (not service-role -- the caller is acting as themselves, not as
-    an admin)."""
     captured = {}
 
     def handler(request: httpx.Request) -> httpx.Response:

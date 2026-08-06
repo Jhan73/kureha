@@ -1,8 +1,3 @@
-"""Task 4.5: `RevokeAllSessionsForUser` -- admin-revoke, RBAC-gated (design.md
-§5.3: "cada mutating use case... comienza con authorize(ctx, action)"), spec
-`session-management` -> "Admin revokes a session" (all of that user's
-sessions, without touching any other user's). Fake ports only, no DB."""
-
 from datetime import datetime, timezone
 
 import pytest

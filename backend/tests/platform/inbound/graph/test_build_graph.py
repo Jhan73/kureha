@@ -1,23 +1,3 @@
-"""Task 11.6: `build_graph()` -- proves the COMPILED graph actually routes
-end-to-end (not just each node in isolation, already covered by
-`nodes/test_*.py`). Real Postgres (`rls_conn`, RLS-enforced) for every
-governance/business use case `persist_and_audit`/`rbac_gate`/`consent_gate`/
-`resolve_toolset` touch; fakes only for the LLM-shaped seam ports
-(`IntentClassifierPort`/`SchedulingPlannerPort`/`ClinicalScopePolicy`/
-`AffirmationClassifierPort`) -- no real LLM/adapter exists yet anywhere in
-this codebase (see `adapters/unwired.py`'s own docstring).
-
-Two scenarios, per this task's own instructions:
-1. A representative LOW-RISK path (web_form schedule, `not_required`
-   confirmation, no HITL) all the way to `persist_and_audit` -> `respond`.
-2. The turn-N/turn-N+1 `confirmation_gate` round trip through the REAL
-   compiled graph (not the node in isolation, already proven by batch 2's
-   `test_confirmation_gate.py`) -- `MemorySaver` (batch 2's own precedent
-   for `interrupt()` mechanics) stands in for `AsyncPostgresSaver` here;
-   `build_graph()` accepts any `BaseCheckpointSaver`, and this package does
-   not need a real Postgres-backed checkpointer to prove the EDGE WIRING
-   itself is correct."""
-
 from datetime import datetime, timezone
 
 import sqlalchemy as sa
@@ -259,13 +239,13 @@ async def test_confirmation_round_trip_through_the_real_compiled_graph(rls_conn)
     assert turn_n_plus_1_result["outcome"].success is True
     assert affirmation_classifier.calls == 2
 
-    # Regression (CRITICAL finding, post-batch-3 verify pass): `respond`
-    # MUST clear `proposed_action` once the turn concludes -- `KurehaState`
-    # has no reducers, so LangGraph's default `LastValue` channel would
-    # otherwise keep turn N+1's completed action in the checkpoint forever,
-    # misrouting every subsequent turn straight back into `confirmation_gate`
-    # via `route_from_start`. `confirmation` itself stays "affirmed" (this
-    # turn's real outcome) -- only `proposed_action` is the routing signal.
+    # `respond` must clear `proposed_action` once the turn concludes --
+    # `KurehaState` has no reducers, so LangGraph's default `LastValue`
+    # channel would otherwise keep turn N+1's completed action in the
+    # checkpoint forever, misrouting every subsequent turn straight back
+    # into `confirmation_gate` via `route_from_start`. `confirmation`
+    # itself stays "affirmed" (this turn's real outcome) -- only
+    # `proposed_action` is the routing signal.
     assert turn_n_plus_1_result["proposed_action"] is None
     assert turn_n_plus_1_result["confirmation"] == "affirmed"
 

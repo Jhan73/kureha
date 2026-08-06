@@ -1,9 +1,3 @@
-"""`EditShift` use case (design.md §5.3/§6, tasks.md task 8.2):
-`authorize(ctx, action)` first, load the existing shift, edit its time
-window, and audit -- same "same transaction" contract as `CreateShift`
-(ADR-3). The DB's `EXCLUDE USING gist` (design.md §4.4) remains the
-concurrency-safe floor for overlap -- see `PostgresShiftRepository`."""
-
 from datetime import datetime
 
 from app.modules.governance.audit.application.ports.driven.audit_log import AuditLogPort

@@ -1,7 +1,3 @@
-"""`CheckConsent` use case (design.md §11): the precondition every mutating
-scheduling/staff use case runs before touching a patient's data. Pure
-orchestration -- delegates the actual verdict to `ConsentPolicy.evaluate`."""
-
 from app.modules.governance.consent.application.ports.driven.consent_registry import ConsentRegistryPort
 from app.modules.governance.consent.domain.consent_policy import ConsentCheckResult, ConsentPolicy
 from app.shared_kernel.tenant_context import TenantContext

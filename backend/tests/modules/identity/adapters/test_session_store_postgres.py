@@ -1,10 +1,3 @@
-"""Task 4.3/4.4/4.5: `PostgresSessionStore` -- `SessionStorePort` adapter
-over `user_sessions` (design.md §17.4). Uses `db_conn` (elevated/`app_user`)
--- the adapter's SQL is identical regardless of which role runs it (every
-query is explicitly scoped by its own WHERE-clause parameters, not `app.*`
-GUCs); RLS enforcement itself is covered separately by
-tests/rls/test_sessions_rls.py against the underlying table."""
-
 from datetime import datetime, timedelta, timezone
 
 from tests.schema.helpers import make_site, make_tenant, make_user

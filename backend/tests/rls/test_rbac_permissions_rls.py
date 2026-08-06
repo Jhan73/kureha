@@ -1,7 +1,3 @@
-"""Task 2.9: RLS isolation for role_permissions/user_permissions (tenant-only,
-design.md §4.4), plus confirmation that `action_permissions` (the global
-catalog) has no RLS at all -- any role/tenant can read it."""
-
 import sqlalchemy as sa
 
 from tests.rls.helpers import seed_site, seed_tenant, seed_user, set_app_context
@@ -47,9 +43,6 @@ async def test_role_permissions_cross_tenant_select_returns_zero_rows(rls_conn) 
 
 
 async def test_role_permissions_any_role_within_tenant_can_read(rls_conn) -> None:
-    """RBAC's own authorization gate is a separate plane (§5.1) -- RLS here
-    only enforces the tenant boundary, not who may read/write the grant
-    table itself."""
     await _seed_action(rls_conn)
     tenant_id = await seed_tenant(rls_conn)
 

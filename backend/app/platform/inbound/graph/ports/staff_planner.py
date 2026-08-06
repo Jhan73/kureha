@@ -1,14 +1,3 @@
-"""`StaffPlannerPort`: the seam `staff_agent` (tasks.md task 11.2, design.md
-§8.2/§8.10) needs to turn `channel_message` into a structured plan for
-`staff`/`shift` intents (only reachable via `staff_copilot`, design.md
-§8.2's own note). No adapter exists yet -- same seam precedent as
-`IntentClassifierPort`/`SchedulingPlannerPort` (this package).
-
-`StaffPlan.kwargs` is shaped 1:1 to match whichever staff use case
-(`RegisterStaff`/`DeactivateStaff`/`CreateShift`/`EditShift`,
-`modules/staff/application/use_cases/`) `action` selects, mirroring
-`SchedulingPlan.kwargs`'s own contract."""
-
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 

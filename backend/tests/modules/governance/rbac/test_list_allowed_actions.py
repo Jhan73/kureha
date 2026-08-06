@@ -1,7 +1,3 @@
-"""Task 3.5: `ListAllowedActions` use case -- thin delegation to
-`AuthorizationPort.list_allowed_actions` (design.md §5.4: feeds
-`resolve_toolset`'s dynamic toolset)."""
-
 import pytest
 
 from app.modules.governance.rbac.application.use_cases.list_allowed_actions import ListAllowedActions

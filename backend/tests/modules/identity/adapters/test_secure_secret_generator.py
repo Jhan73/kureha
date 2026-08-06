@@ -1,6 +1,3 @@
-"""Task 4.3/4.4: `SecureSecretGenerator` -- production `SecretGeneratorPort`
-impl, cryptographically random opaque refresh secrets."""
-
 from app.modules.identity.adapters.outbound.tokens.secure_secret_generator import SecureSecretGenerator
 
 

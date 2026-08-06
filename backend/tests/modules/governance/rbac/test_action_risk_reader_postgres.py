@@ -1,8 +1,3 @@
-"""Task 11.4: `ActionRiskReader` -- integration test hitting the real,
-global `action_permissions` catalog (no RLS, design.md §4.4) through
-`db_conn` (rolled back per test, same convention as `test_rbac_tables.py`,
-not `rls_conn`, since this table has no tenant-scoped policy to exercise)."""
-
 import sqlalchemy as sa
 
 from app.modules.governance.rbac.adapters.outbound.rbac.action_risk_reader import ActionRiskReader
@@ -45,11 +40,6 @@ async def test_get_denies_by_default_for_an_action_not_in_the_catalog(db_conn) -
 
 
 async def test_a_fresh_reader_instance_never_sees_a_stale_value(db_conn) -> None:
-    """Mirrors `PermissionService`'s own
-    `test_a_fresh_service_instance_never_sees_a_stale_memo` -- no
-    cross-request cache means a config change is visible immediately to a
-    newly constructed reader, without any invalidation mechanism to get
-    wrong."""
     await db_conn.execute(
         sa.text(
             "INSERT INTO action_permissions (key, description, bulk_cancel_threshold) "

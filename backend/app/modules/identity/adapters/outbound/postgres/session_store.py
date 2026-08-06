@@ -1,11 +1,3 @@
-"""`PostgresSessionStore`: `SessionStorePort` adapter over `user_sessions`
-(design.md §17.4). See `SessionStorePort`'s docstring for the two different
-connection-privilege callers this single adapter class serves (elevated for
-`Login`/`RefreshToken`, RLS-scoped `app_runtime` for `Logout`/
-`RevokeAllSessionsForUser`) -- every query here is explicitly scoped by its
-own WHERE-clause parameters (never relies on `app.*` GUCs), so the SQL below
-is correct under either connection."""
-
 from datetime import datetime
 
 from sqlalchemy import text
@@ -114,10 +106,7 @@ class PostgresSessionStore:
         return self._row_to_session(result.one())
 
     async def revoke_chain(self, session_id: str, *, revoked_at: datetime) -> None:
-        # Walks the rotation lineage in BOTH directions (ancestors via
-        # `rotated_from`, descendants via the reverse) -- design.md §17.4's
-        # reuse-detection response revokes the whole chain, not just the one
-        # presented row (see this method's docstring on SessionStorePort).
+        # Walk rotation lineage both ways; reuse detection revokes the whole chain.
         await self._conn.execute(
             text(
                 """

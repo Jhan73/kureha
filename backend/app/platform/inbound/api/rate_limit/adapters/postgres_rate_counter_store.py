@@ -1,17 +1,3 @@
-"""`PostgresRateCounterStore`: `RateCounterStorePort` adapter over
-`rate_counters` (design.md §19). Same atomic UPSERT pattern proven in
-`tests/schema/test_sessions_and_rate_limiting.py`:
-`INSERT ... ON CONFLICT (dimension, subject, window_start) DO UPDATE SET
-count = rate_counters.count + :by`. `peek` is a plain `SELECT` -- genuinely
-side-effect-free, unlike calling `increment(..., by=0, ...)` as a fake-read
-(which still creates a row via the UPSERT's `INSERT` branch).
-
-`rate_counters` has no RLS (design.md §4.4) and is touched only by the
-rate-limiting middleware, never a domain use case -- this adapter is wired
-against `app.db.engine` (elevated), same as `PostgresLiveActorResolver`,
-since the auth-throttle dimension runs pre-context (no `app.*` GUC exists
-yet when a login/refresh attempt is being throttled)."""
-
 from datetime import datetime
 
 from sqlalchemy import text

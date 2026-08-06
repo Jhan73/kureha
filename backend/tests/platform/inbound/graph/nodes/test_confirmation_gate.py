@@ -1,8 +1,3 @@
-"""Task 11.3: `confirmation_gate` node -- `not_required`/`needed`/`affirmed`/
-decline logic (design.md §8.9). Fake `AffirmationClassifierPort`, mirroring
-`_FakeClassifier`/`_ExplodingAuthorizationPort`'s precedent (`test_triage.py`,
-`test_rbac_gate.py`)."""
-
 import pytest
 
 from app.platform.inbound.graph.nodes.confirmation_gate import make_confirmation_gate_node
@@ -115,9 +110,6 @@ async def test_affirmed_when_classifier_returns_affirmed_and_keeps_proposed_acti
 
 @pytest.mark.asyncio
 async def test_unclear_on_first_pass_asks_needed_not_regressed() -> None:
-    """(a) First-pass "unclear" (state entering with confirmation=None, i.e.
-    NOT awaiting a reply -- turn N, Caso B) still asks -- must not regress
-    the pre-fix behavior."""
     classifier = _FakeAffirmationClassifier(decision="unclear")
     node = make_confirmation_gate_node(classifier)
     action = _proposed_action()
@@ -132,10 +124,6 @@ async def test_unclear_on_first_pass_asks_needed_not_regressed() -> None:
 
 @pytest.mark.asyncio
 async def test_unclear_on_reply_pass_declines_and_cleans_checkpoint() -> None:
-    """(b) Reply-pass "unclear" (state entering with confirmation="needed",
-    i.e. turn N+1 replying to an already-asked prompt -- Caso C) must decline
-    the same way an explicit "declined" verdict does, per design.md §8.9's
-    "cambio de topico" trigger -- NOT re-ask forever."""
     classifier = _FakeAffirmationClassifier(decision="unclear")
     node = make_confirmation_gate_node(classifier)
     action = _proposed_action()
@@ -153,9 +141,6 @@ async def test_unclear_on_reply_pass_declines_and_cleans_checkpoint() -> None:
 
 @pytest.mark.asyncio
 async def test_decline_explicitly_clears_proposed_action_and_confirmation() -> None:
-    """THE critical invariant (design.md §8.9): the returned dict must
-    explicitly carry `proposed_action: None` and `confirmation: None`, not
-    just "doesn't raise" -- LangGraph does not clear an omitted key."""
     classifier = _FakeAffirmationClassifier(decision="declined")
     node = make_confirmation_gate_node(classifier)
     action = _proposed_action()

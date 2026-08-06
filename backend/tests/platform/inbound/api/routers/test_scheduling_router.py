@@ -1,25 +1,3 @@
-"""Task 10.1: `/appointments/*` web-form routes against the real FastAPI app
-+ real Postgres. Proves:
-
-(a) a valid `reception` request schedules an appointment end-to-end
-    (RLS-scoped connection, real `AuthorizeAction`/`PermissionService`,
-    real repositories, real audit write, real consent gate);
-(b) a `patient` actor (not granted `appointment:create` in
-    `DEFAULT_DEV_ROLE_PERMISSIONS`) is denied through the REAL RBAC chain
-    -- `AuthorizeAction` -> `ActionNotPermittedError` -> `errors.py`'s
-    mapping -- not a hand-rolled check in the router;
-(c) a domain `NotFoundError` (cancelling an appointment id that does not
-    exist) comes back as the exact §21 envelope shape;
-(d) verify-report #414 gap closure: a patient with NO current consent on
-    file is denied through the REAL `CheckConsent` chain -- `CheckConsent`
-    -> `ConsentNotCurrentError` -> `errors.py`'s new `consent-required`
-    mapping -- for all 4 mutating actions (schedule/reschedule/cancel/
-    reminder), and RBAC denial still takes priority over consent denial
-    (scheduling.py's own module docstring explains why).
-
-**Sync `def test_...`, not `async def`** -- see `conftest.py`'s own module
-docstring for why."""
-
 from datetime import datetime, timezone
 
 from tests.platform.inbound.api.routers.conftest import (
@@ -198,10 +176,6 @@ def test_reminder_is_denied_when_patient_has_no_current_consent(client) -> None:
 def test_schedule_appointment_succeeds_when_patient_has_current_consent_for_reschedule_and_cancel_flow(
     client,
 ) -> None:
-    """Positive-path companion to the 4 denial tests above: proves the gate
-    does NOT block a patient WITH current consent through reschedule then
-    cancel, i.e. the consent check is a real gate, not a permanently-closed
-    one."""
     reception = seed_reception_actor(email="reception-consent-positive@example.com")
     patient = seed_patient_actor()
     slot = seed_available_slot(reception["tenant_id"], reception["site_id"], starts_at=_STARTS_AT, ends_at=_ENDS_AT)

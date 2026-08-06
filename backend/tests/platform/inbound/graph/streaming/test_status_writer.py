@@ -1,17 +1,3 @@
-"""`emit_status` (design.md §8.5/§8.7, tasks.md task 12.2): the `custom`
-stream_mode status-event helper every node that reports progress calls.
-**Scoped to `allowed_actions` ONLY** -- spec `internal-staff-copilot`,
-"Streaming status shows only permitted tool activity": a status event tied
-to a specific RBAC-gated `action` MUST NOT be emitted unless that action is
-in the caller's own `allowed_actions`, so no tool name leaks even
-transiently to a user who lacks permission for it.
-
-**Safe outside a running graph (`get_stream_writer()` raises `RuntimeError`
-when called outside a LangGraph runnable context -- confirmed empirically:
-every OTHER node in this package is unit-tested by calling the bare node
-function directly, never through a compiled graph) -- must never break an
-existing node's unit test.**"""
-
 import pytest
 
 from app.platform.inbound.graph.streaming import status_writer
@@ -89,11 +75,6 @@ def test_emit_status_suppresses_the_event_when_allowed_actions_is_none() -> None
 
 
 def test_emit_status_is_a_no_op_outside_a_running_graph(monkeypatch) -> None:
-    """The exact hazard this helper exists to guard against: every existing
-    node test in this codebase calls the bare node function directly, never
-    through a compiled graph -- `get_stream_writer()` would otherwise raise
-    `RuntimeError` and break every one of those tests the moment a node
-    calls `emit_status`."""
     monkeypatch.setattr(status_writer, "get_stream_writer", _raise_not_in_context)
 
     status_writer.emit_status(phase="resolving_toolset", label="Resolviendo permisos")
@@ -101,9 +82,5 @@ def test_emit_status_is_a_no_op_outside_a_running_graph(monkeypatch) -> None:
 
 
 async def test_emit_status_matches_the_real_get_stream_writer_contract() -> None:
-    """Not monkeypatched -- proves the REAL `langgraph.config.get_stream_writer`
-    also raises `RuntimeError` (not some other exception type) when called
-    outside a runnable context, so the `except RuntimeError` above is
-    catching the right thing, not guessing."""
     with pytest.raises(RuntimeError):
         status_writer.get_stream_writer()

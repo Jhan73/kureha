@@ -1,9 +1,3 @@
-"""Task 7.4: `PostgresSchedulingRepository` -- `SchedulingRepositoryPort`
-adapter over `appointments` (design.md §4.1, migration 3505dc8ce3ad).
-
-Uses `rls_conn` (the `app_runtime`/RLS-enforced connection), same contract
-as `PostgresAvailabilityRepository`'s test module."""
-
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -52,11 +46,6 @@ async def test_create_appointment_inserts_a_scheduled_row(rls_conn) -> None:
 
 
 async def test_create_appointment_raises_slot_unavailable_on_overlap(rls_conn) -> None:
-    """Two DIFFERENT (non-overlapping-with-each-other) `availability` rows
-    for the SAME professional, but the second `create_appointment` call is
-    given overlapping `starts_at`/`ends_at` -- this hits `appointments`'
-    own `EXCLUDE USING gist` (design.md §4.1), independent of whatever
-    range each row's `availability_id` was originally published for."""
     tenant_id, site_id, professional_id, patient_id, availability_id = await _seed_scenario(rls_conn)
     other_availability = await seed_availability(
         rls_conn, tenant_id, site_id, professional_id, starts_at=T2, ends_at=T2 + timedelta(hours=1)

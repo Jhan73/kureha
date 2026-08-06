@@ -1,7 +1,3 @@
-"""Task 4.1-4.3: user_credentials (design.md §17.3, gap fixed in migration
-9f1c4a7b2e3d -- see that migration's docstring for why this is a dedicated
-table rather than columns added to `users`)."""
-
 import sqlalchemy as sa
 from sqlalchemy.exc import IntegrityError
 
@@ -49,8 +45,6 @@ async def test_user_credentials_email_may_repeat_across_tenants(db_conn) -> None
 
 
 async def test_user_credentials_auth_subject_allows_multiple_nulls(db_conn, tenant_id) -> None:
-    """Plain UNIQUE(tenant_id, auth_subject), no partial index needed --
-    Postgres treats every NULL as distinct in a multi-column UNIQUE."""
     site_id = await make_site(db_conn, tenant_id)
     user_a = await make_user(db_conn, tenant_id, site_id, role="reception")
     user_b = await make_user(db_conn, tenant_id, site_id, role="reception")

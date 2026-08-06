@@ -1,10 +1,3 @@
-"""Task 8.3: `PostgresShiftRepository` -- `ShiftRepositoryPort` adapter over
-`shifts` (design.md §4.4, migration d0e2489a94b8).
-
-Uses `rls_conn` (the `app_runtime`/RLS-enforced connection), same
-IntegrityError-translation contract `PostgresSchedulingRepository`'s test
-module documents for the `EXCLUDE USING gist` anti-overlap constraint."""
-
 from datetime import datetime, timedelta, timezone
 
 import pytest

@@ -1,17 +1,10 @@
-"""Domain entities mirroring `consent_policies`/`consents` (design.md §4.1,
-§11). Pure value objects -- no IO, no policy/business-rule logic (that lives
-in `consent_policy.py`)."""
-
 from dataclasses import dataclass
 from datetime import datetime
 
 
 @dataclass(frozen=True, slots=True)
 class ConsentPolicyVersion:
-    """One row of the `consent_policies` catalog: a published version of the
-    tenant's consent text. At most one row per tenant has `is_current=True`
-    (enforced by `one_current_policy_per_tenant`, migration
-    `5975cbe7665e`)."""
+    """Published consent text version; at most one is_current per tenant."""
 
     tenant_id: str
     version: str
@@ -22,11 +15,7 @@ class ConsentPolicyVersion:
 
 @dataclass(frozen=True, slots=True)
 class Consent:
-    """One row of `consents`: a patient's acceptance (or revocation) of a
-    specific `ConsentPolicyVersion`. `status` mirrors the DB CHECK
-    constraint (`accepted`|`revoked`) -- kept as the literal string rather
-    than an enum here since it round-trips directly to/from the
-    `consents.status` column with no translation needed."""
+    """Patient acceptance/revocation of a policy version; status is accepted|revoked."""
 
     id: str
     tenant_id: str

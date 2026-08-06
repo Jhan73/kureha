@@ -1,7 +1,3 @@
-"""Task 4.1/4.3: `JwtAccessTokenIssuer` -- production `AccessTokenIssuerPort`
-impl. Kureha mints its own access JWT (design.md §17.4/ADR-15), signed
-HS256 with a shared secret (no external IdP round trip per request)."""
-
 from datetime import datetime, timedelta, timezone
 
 import jwt

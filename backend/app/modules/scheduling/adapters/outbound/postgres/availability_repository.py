@@ -1,12 +1,3 @@
-"""`PostgresAvailabilityRepository`: `AvailabilityRepositoryPort` adapter
-over `availability` (design.md §4.1, migration 3505dc8ce3ad).
-
-Takes an already-open `AsyncConnection` rather than owning an engine, same
-pattern every other postgres adapter in this codebase follows. Composition
-root (tasks.md task 10.2) MUST construct this against `app.db.runtime_engine`
-(`app_runtime`, RLS-enforced) with the request's `SET LOCAL app.*` GUCs
-already applied -- never `app.db.engine` for a request-scoped query."""
-
 from datetime import date
 
 from sqlalchemy import text

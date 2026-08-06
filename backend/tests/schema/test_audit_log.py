@@ -1,14 +1,3 @@
-"""Task 2.4: audit_logs append-only + hash-chain (design.md §4.3).
-
-Two independent defenses are tested:
-1. `trg_audit_no_update` (BEFORE UPDATE OR DELETE) and `trg_audit_no_truncate`
-   (BEFORE TRUNCATE) reject mutation unconditionally -- this holds even for a
-   role with UPDATE/DELETE/TRUNCATE grants (e.g. a Postgres superuser),
-   unlike the REVOKE-based permission layer.
-2. `trg_audit_chain` (BEFORE INSERT) computes `prev_hash`/`row_hash`, chained
-   per `tenant_id` (design.md ADR-8: the chain does not span tenants).
-"""
-
 import sqlalchemy as sa
 from sqlalchemy.exc import DBAPIError, IntegrityError
 
@@ -47,10 +36,6 @@ async def test_audit_logs_reject_delete(db_conn, tenant_id) -> None:
 
 
 async def test_audit_logs_reject_truncate(db_conn, tenant_id) -> None:
-    """Row-level BEFORE triggers never fire on TRUNCATE in Postgres -- a
-    dedicated FOR EACH STATEMENT trigger is required so append-only holds
-    even against a role that (today, locally) bypasses the REVOKE-based
-    permission layer (see migration docstring)."""
     await _insert_audit_row(db_conn, tenant_id)
 
     async with expect_violation(db_conn, DBAPIError, match="append-only"):
@@ -75,9 +60,6 @@ async def test_hash_chain_links_consecutive_rows_within_tenant(db_conn, tenant_i
 
 
 async def test_hash_chain_does_not_span_tenants(db_conn) -> None:
-    """ADR-8: the chain partitions by tenant_id, not globally -- a second
-    tenant's first row must start its own chain (prev_hash NULL) even though
-    another tenant already has rows."""
     tenant_a = await make_tenant(db_conn)
     tenant_b = await make_tenant(db_conn)
 
@@ -88,10 +70,6 @@ async def test_hash_chain_does_not_span_tenants(db_conn) -> None:
 
 
 async def test_hash_chain_row_hash_matches_canonical_recomputation(db_conn, tenant_id) -> None:
-    """Verifies the trigger's digest formula matches design.md §4.3 exactly,
-    using the same recomputation approach as the integrity-verification job
-    described there (LAG-based, per-tenant) instead of re-deriving formatting
-    in Python (avoids datetime/jsonb text-cast mismatches)."""
     await _insert_audit_row(db_conn, tenant_id, action="appointment.create")
     await _insert_audit_row(db_conn, tenant_id, action="appointment.reschedule")
     await _insert_audit_row(db_conn, tenant_id, action="appointment.cancel")
@@ -148,10 +126,6 @@ async def test_audit_logs_actor_type_check_rejects_unknown_value(db_conn, tenant
 
 
 async def test_audit_logs_site_id_rejects_a_site_from_a_different_tenant(db_conn, tenant_id) -> None:
-    """PR 4 review fix: `site_id` is now a composite FK `(tenant_id,
-    site_id) REFERENCES sites (tenant_id, id)`, matching every sibling
-    table -- a site belonging to another tenant must be rejected, not just
-    "some site that exists somewhere"."""
     other_tenant_id = await make_tenant(db_conn)
     other_tenants_site_id = await make_site(db_conn, other_tenant_id)
 

@@ -1,9 +1,3 @@
-"""`resolve_toolset` node (design.md §5.4/§8.2, tasks.md task 11.2): calls
-`ListAllowedActions` once per request and stores the full permitted-action
-set on `state.allowed_actions`, sorted for deterministic output -- the
-copilot's dynamic toolset (a denied action is never offered) AND the input
-`rbac_gate`'s in-memory shortcut consumes (design.md §5.6/ADR-16)."""
-
 from app.modules.governance.rbac.application.use_cases.list_allowed_actions import ListAllowedActions
 from app.platform.inbound.graph.state import KurehaState
 from app.platform.inbound.graph.streaming.status_writer import emit_status

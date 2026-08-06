@@ -1,21 +1,3 @@
-"""`reminders_agent` node (design.md §8.2/§8.10, tasks.md task 11.2): plans
-a `ProposedAction` for the `reminder` intent against `ReminderPlannerPort`
-(this batch's seam). Always `risk_level="low"` -- `RiskPolicy` (design.md
-§8.4) has no rule for reminders, only bulk-cancel and
-reschedule-professional-reassignment.
-
-**`is_mutating` judgment call, flagged:** `SendReminder`'s own RBAC action
-is `appointment:view` (its module docstring: reused rather than inventing
-a dedicated `appointment:reminder` key), which reads like a read-only
-action. This node still marks the resulting `ProposedAction.
-is_mutating=True` -- sending a reminder has a real-world side effect (a
-message delivered to the patient) even though it does not mutate
-`appointments`/`availability` rows, and design.md §8.9's confirmation-gate
-invariant is framed around `create/update/delete` MUTATIONS
-conversationally, not RBAC action-key naming. Flagged here in case a
-future review decides a reminder should be `not_required` (`confirmation_
-gate` Caso A) instead."""
-
 from app.platform.inbound.graph.ports.reminder_planner import ReminderPlannerPort
 from app.platform.inbound.graph.state import KurehaState, ProposedAction
 from app.platform.inbound.graph.streaming.status_writer import emit_status

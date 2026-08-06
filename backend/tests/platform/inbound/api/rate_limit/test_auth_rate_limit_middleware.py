@@ -1,20 +1,3 @@
-"""Task 5.3a: `AuthRateLimitMiddleware` -- layer 3 of design.md §19's rate
-limiting: "Auth/token (baja frecuencia): sliding/fixed-window sobre
-`rate_counters`... Exceso -> denegacion temporal auditada". Orchestration
-only, tested against a fake rate-check callable (same fakes-only style as
-`test_middleware.py`) -- the real UPSERT/window math is proven by
-`test_postgres_rate_counter_store.py`/`test_fixed_window_limiter.py`.
-
-Keyed by IP only (design.md §4.4: the pre-login auth-throttle dimension has
-no `tenant_id` yet) -- only paths under `protected_path_prefixes` are
-throttled, everything else passes through untouched.
-
-CRITICAL fix #2 (kureha-mvp PR 6 verify report, obs #414): the
-`platform-hardening` spec's "Rate Limiting on Authentication Endpoints"
-requirement is explicit that "the throttling event MUST be auditable" --
-`test_protected_path_over_the_limit_is_audited` and
-`test_protected_path_under_the_limit_is_not_audited` close that gap."""
-
 from starlette.requests import Request
 from starlette.responses import Response
 
@@ -68,11 +51,7 @@ class _FakeAuditLog:
 
 
 class _FailingAuditLog:
-    """CRITICAL fix #1 (fresh-review pass, kureha-mvp PR 6): an
-    `AuditLogPort` fake whose `record()` always raises, used to prove a
-    failed audit write can never replace the intended 429 with an
-    unhandled 500 (e.g. an FK violation from `SYSTEM_TENANT_ID` having no
-    seeded `tenants` row yet)."""
+    """`AuditLogPort` fake whose `record` always raises."""
 
     async def record(self, entry: AuditEntry) -> str:
         raise RuntimeError("audit backend unavailable")
@@ -241,10 +220,6 @@ async def test_trust_forwarded_for_falls_back_to_unknown_when_header_absent_and_
 
 
 async def test_audit_write_failure_does_not_prevent_the_429_response() -> None:
-    """CRITICAL fix #1 (fresh-review pass): `_audit_rate_limited`'s write
-    can fail (e.g. FK violation on `SYSTEM_TENANT_ID`, which has no seeded
-    `tenants` row yet). That failure must never replace the intended 429
-    with an unhandled 500 -- the rate-limit decision always wins."""
     middleware, _, _ = _build_middleware(allowed=False, audit_log=_FailingAuditLog())
 
     async def call_next(request: Request) -> Response:  # pragma: no cover

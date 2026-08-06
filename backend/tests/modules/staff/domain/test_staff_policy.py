@@ -1,12 +1,3 @@
-"""Task 8.1: `StaffPolicy` -- pure rules (design.md §6: "StaffPolicy (baja no
-borra historia; shift valido no solapa)"). No IO -- the DB's own
-`EXCLUDE USING gist` (design.md §4.4) remains the concurrency-safe floor for
-overlap (see `PostgresShiftRepository`); `shifts_overlap` here is a pure
-predicate usable standalone, mirroring `RiskPolicy`'s split between a pure
-domain rule and its DB-level enforcement counterpart. `is_assignable` encodes
-"deactivated staff MUST NOT be assignable to new ... shifts" (spec
-`staff-registry` -> "Personnel Create/Deactivate per Site")."""
-
 from datetime import datetime, timezone
 
 from app.modules.staff.domain.shift import Shift

@@ -1,6 +1,3 @@
-"""Task 4.1: `AuthnResult` -- pure value object, authn-only (design.md §17.1:
-"no trae rol, tenant ni permisos -- eso lo resuelve Kureha")."""
-
 from app.modules.identity.domain.authn_result import AuthnResult
 
 

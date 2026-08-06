@@ -1,5 +1,3 @@
-"""Task 3.1: `DomainError` hierarchy (design.md §2.5)."""
-
 import pytest
 
 from app.shared_kernel.errors import (

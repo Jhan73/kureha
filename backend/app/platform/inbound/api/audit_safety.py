@@ -1,19 +1,3 @@
-"""Best-effort audit write helper, deduplicated out of
-`AccessControlMiddleware`, `AuthRateLimitMiddleware`, and `LlmBudgetGuard`
-(fresh-review pass CRITICAL fixes #1/#3, kureha-mvp PR 6): every platform
-checkpoint that audits a DENY/throttled/budget-exceeded decision must never
-let a failure in the audit write itself replace that decision with an
-unhandled 500 (or, for `LlmBudgetGuard`, mask the `LlmBudgetExceededError`
-callers specifically expect to catch).
-
-A concrete, non-hypothetical failure mode this guards against: `_record_audit
-.record(...)` for `AUTH_UNMAPPED_IDENTITY`/`AUTH_RATE_LIMITED` writes under
-the `SYSTEM_TENANT_ID` sentinel (`system_tenant.py`), which has no seeded
-`tenants` row yet -- a real Postgres `AuditLogPort` adapter would raise an
-FK violation there today. The security/rate-limit/budget decision ALWAYS
-wins over the audit trail: if `record()` raises, the failure is logged and
-swallowed here, never propagated to the caller."""
-
 import logging
 
 from app.modules.governance.audit.application.ports.driven.audit_log import AuditLogPort

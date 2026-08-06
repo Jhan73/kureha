@@ -1,6 +1,3 @@
-"""Task 4.3: `UserAccount` -- projection of `users` (+ `user_credentials`)
-used by the identity module's authn-resolution use cases."""
-
 from app.modules.identity.domain.user_account import UserAccount
 
 

@@ -1,18 +1,3 @@
-"""`PostgresShiftRepository`: `ShiftRepositoryPort` adapter over `shifts`
-(design.md §4.4, migration d0e2489a94b8).
-
-Takes an already-open `AsyncConnection` rather than owning an engine, same
-pattern every other postgres adapter in this codebase follows. Composition
-root (tasks.md task 10.2) MUST construct this against `app.db.runtime_engine`
-(`app_runtime`, RLS-enforced) with the request's `SET LOCAL app.*` GUCs
-already applied -- never `app.db.engine` for a request-scoped query.
-
-`create_shift`/`edit_shift` catch `sqlalchemy.exc.IntegrityError` and
-translate it to `ShiftOverlapError` -- the ONLY integrity constraint an
-authorized, well-formed INSERT/UPDATE against this table can hit is the
-`EXCLUDE USING gist` anti-overlap constraint (design.md §4.4), same precedent
-`PostgresSchedulingRepository` documents for `appointments`."""
-
 from datetime import datetime
 
 from sqlalchemy import text

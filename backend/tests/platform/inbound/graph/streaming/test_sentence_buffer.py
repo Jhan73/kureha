@@ -1,10 +1,3 @@
-"""`SentenceBoundaryBuffer` (design.md §8.7, tasks.md task 12.4): accumulates
-token deltas until a sentence boundary (`\\n`, `.`, `?`, `!`) or a ~80-token
-fallback -- whichever occurs first -- design.md's own algorithm, verbatim:
-"los tokens del agente se acumulan en un buffer hasta el primer limite de
-oracion... o hasta ~80 tokens si no hay limite en ese tramo -- lo que ocurra
-primero"."""
-
 from app.platform.inbound.graph.streaming.sentence_buffer import SentenceBoundaryBuffer
 
 
@@ -83,9 +76,6 @@ def test_flush_drains_and_resets_the_buffer() -> None:
 
 
 def test_boundary_after_a_fallback_flush_starts_a_fresh_word_count() -> None:
-    """Regression guard: the word-count accumulator must reset on EVERY
-    flush (boundary-triggered or fallback-triggered), never silently keep
-    counting from a stale total."""
     buf = SentenceBoundaryBuffer(token_fallback=3)
 
     first_units = buf.push("one two three")  # fallback fires, resets counter

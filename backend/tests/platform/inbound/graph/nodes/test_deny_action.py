@@ -1,6 +1,3 @@
-"""Task 11.5: `deny_action` node -- curated denial text (no internals
-leaked), audits `AuditAction.RBAC_DENIED`."""
-
 import pytest
 
 from app.modules.governance.audit.domain.audit_entry import AuditAction

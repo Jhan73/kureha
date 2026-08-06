@@ -1,15 +1,3 @@
-"""`CancelAppointment` use case (design.md §5.3/§9, tasks.md task 7.3):
-`authorize(ctx, action)` first, load the existing appointment and confirm it
-is still active, cancel it, release its `availability` slot back to the
-pool, and audit -- same "same transaction" contract as `ScheduleAppointment`
-(ADR-3).
-
-Bulk cancellation (design.md §8.4's `RiskPolicy.evaluate_bulk_cancel`) is NOT
-a separate use case here: a bulk cancel is the future `scheduling_agent`/
-graph orchestration (tasks.md Phase 11) calling this single-appointment use
-case N times after HITL approval, not a distinct DB operation this module
-needs to expose."""
-
 from app.modules.governance.audit.application.ports.driven.audit_log import AuditLogPort
 from app.modules.governance.audit.domain.audit_entry import AuditAction, AuditActorType, AuditEntry
 from app.modules.governance.rbac.application.use_cases.authorize_action import AuthorizeAction

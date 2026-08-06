@@ -1,8 +1,3 @@
-"""Task 9.5: `RetryPendingCalendarSyncs` -- reconciliation job over
-`pending`/`failed` `calendar_sync` rows, gated by `RetryBackoffPolicy`
-(domain/retry_backoff_policy.py) and `AppointmentSnapshotPort`. Fakes only,
-no DB, no real clock."""
-
 from datetime import datetime, timedelta, timezone
 
 from app.modules.calendar.application.ports.driven.appointment_snapshot import AppointmentSyncSnapshot

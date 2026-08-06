@@ -1,6 +1,3 @@
-"""Task 11.5: `response_guard` node -- outbound `ClinicalScopePolicy.
-classify_outbound`, non-streaming single-shot for this batch."""
-
 import pytest
 
 from app.modules.governance.scope.domain.scope_policy import OutboundScopeCategory, OutboundScopeResult
@@ -69,8 +66,6 @@ async def test_clinical_content_sets_response_scope_ok_false() -> None:
 
 @pytest.mark.asyncio
 async def test_none_response_text_classifies_empty_string() -> None:
-    """Operational path -- `respond` has not composed text yet at this
-    point (see this node's own docstring)."""
     policy = _FakeScopePolicy(category=OutboundScopeCategory.SAFE)
     node = make_response_guard_node(policy)
     state = _state(response_text=None)

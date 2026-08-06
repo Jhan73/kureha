@@ -1,13 +1,3 @@
-"""`RegisterStaff` use case (design.md §5.3/§6, tasks.md task 8.2):
-`authorize(ctx, action)` first, then create the operational registry row and
-audit -- all in the caller's already-open transaction, same "same
-transaction" contract every other business-module use case follows (ADR-3).
-
-No HR fields accepted here by construction -- `site_id`/`name`/
-`operational_role`/`user_id`/`professional_id` is the entire surface, matching
-spec `staff-registry`'s "Out-of-HR-Scope Boundary" (no payroll/contracts/
-performance-evaluation)."""
-
 from app.modules.governance.audit.application.ports.driven.audit_log import AuditLogPort
 from app.modules.governance.audit.domain.audit_entry import AuditAction, AuditActorType, AuditEntry
 from app.modules.governance.rbac.application.use_cases.authorize_action import AuthorizeAction

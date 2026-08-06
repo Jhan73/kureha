@@ -1,16 +1,3 @@
-"""tasks.md task 12.7 (PR 12 batch 2): `AnthropicSchedulingPlanner`, the real
-`SchedulingPlannerPort` adapter `scheduling_agent` consumes (design.md
-§8.4 point 1/§8.10). Reasoner tier. No real network -- same hand-rolled
-fake-chat-model precedent as `test_anthropic_intent_classifier.py`.
-
-**The dominant thing these tests prove is the ID-resolution gap this
-adapter's own module docstring flags at length: `kwargs` only ever contains
-fields the model actually extracted (never a fabricated ID), and any field
-it did not extract is simply ABSENT from `kwargs` (never `None`) so
-`persist_and_audit`'s `use_case.execute(ctx, **payload)` fails LOUDLY with a
-clean `TypeError` for a missing required kwarg, rather than passing a
-literal `None` into a use case that has no way to safely handle it.**"""
-
 import pytest
 
 from app.platform.inbound.graph.adapters.anthropic_scheduling_planner import AnthropicSchedulingPlanner
@@ -58,9 +45,6 @@ class _Extraction:
 
 
 async def test_schedule_intent_maps_deterministically_to_appointment_create() -> None:
-    """`action` is derived from `intent` deterministically -- `intent` was
-    already validated upstream by `triage`'s own Literal enum, so the LLM is
-    never asked to re-guess it."""
     llm = _FakeChatModel(_Extraction(summary="Agenda una cita."))
     planner = AnthropicSchedulingPlanner(llm)
 
@@ -88,10 +72,6 @@ async def test_cancel_intent_maps_to_appointment_cancel() -> None:
 
 
 async def test_schedule_kwargs_only_include_fields_the_model_actually_extracted() -> None:
-    """No real IDs exist in typical conversational text -- when the model
-    extracts nothing, `kwargs` must be EMPTY, never populated with `None`
-    placeholders (that would let a `None` silently reach the real use
-    case's SQL layer instead of failing loudly with a clean `TypeError`)."""
     llm = _FakeChatModel(_Extraction(summary="Agenda una cita el martes."))
     planner = AnthropicSchedulingPlanner(llm)
 
@@ -111,9 +91,6 @@ async def test_schedule_kwargs_include_only_extracted_fields_when_partially_know
 
 
 async def test_reschedule_kwargs_only_carry_reschedule_shaped_fields() -> None:
-    """A field irrelevant to `RescheduleAppointment.execute`'s own kwargs
-    shape (e.g. `patient_id`) must never leak into `kwargs` even if the
-    model extracted it for some other reason."""
     llm = _FakeChatModel(
         _Extraction(
             appointment_id="appt-1",
@@ -141,11 +118,6 @@ async def test_cancel_kwargs_only_carry_appointment_id() -> None:
 
 
 async def test_bulk_cancel_risk_fields_survive_into_the_plan_but_never_into_kwargs() -> None:
-    """`appointment_ids`/`requested_professional_id`/`target_professional_id`
-    exist SOLELY to feed `scheduling_agent`'s `RiskPolicy` calls
-    (`SchedulingPlannerPort`'s own docstring) -- they must be readable on the
-    `SchedulingPlan` itself but never dispatched to `CancelAppointment.
-    execute()`, which has no such kwarg."""
     llm = _FakeChatModel(
         _Extraction(
             appointment_id="appt-1",
@@ -202,13 +174,6 @@ async def test_message_reaches_the_model() -> None:
 
 
 async def test_an_llm_failure_propagates_no_try_except_here() -> None:
-    """Mirrors `persist_and_audit`'s own "no try/except, propagate to the
-    central error handler" posture (its own module docstring) -- unlike the
-    classifiers built in batch 1, a planner has no safe "unknown"-shaped
-    fallback value it could resolve to instead: `scheduling_agent`'s only
-    outgoing edge is an UNCONDITIONAL `add_edge("scheduling_agent",
-    "rbac_gate")` (`build_graph.py`), there is no designed failure-routing
-    edge this node could redirect to on a planner error."""
     llm = _FakeChatModel(RuntimeError("boom"))
     planner = AnthropicSchedulingPlanner(llm)
 

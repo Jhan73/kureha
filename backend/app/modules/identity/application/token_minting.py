@@ -1,9 +1,3 @@
-"""Shared token-minting helper for `Login` and `ConfirmAccountLink` -- both
-end with the identical "mint access + opaque refresh, persist the refresh
-hash" sequence (design.md §17.4). `RefreshToken` does NOT use this: its
-rotation flow revokes the old session as part of the same step, which this
-helper does not (and should not) know about."""
-
 from datetime import datetime, timedelta
 
 from app.modules.identity.application.ports.driven.secret_generator import SecretGeneratorPort

@@ -1,14 +1,3 @@
-"""`PostgresPatientEmailLookup`: `PatientEmailLookupPort` adapter reading
-`patients.email` (design.md §7.3, migration 8fc0dc6f958d). See the port's
-own module docstring (application/ports/driven/patient_email_lookup.py) for
-why calendar reads this table directly rather than going through another
-module's port.
-
-Takes an already-open `AsyncConnection`. `ConnectPatientCalendar` runs as
-`role='patient'` (`patients_self`, migration 613f9ea3526f allows a patient
-to SELECT their own row) -- the composition root (tasks.md task 10.2) MUST
-construct this against a connection scoped that way."""
-
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 

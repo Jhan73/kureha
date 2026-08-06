@@ -1,86 +1,3 @@
-"""Chat router (design.md §8.6, tasks.md task 11.7): `POST /chat` --
-non-streaming invocation of `build_graph()` (SSE streaming is task 12.1, a
-LATER phase; a plain `await graph.ainvoke(...)` is enough here per this
-task's own instructions).
-
-**`thread_id` ownership validation (design.md §8.6) -- the entire point of
-this router, not an afterthought.** The request body accepts an OPTIONAL
-`client_random_uuid`; if absent, the server generates one
-(`design.md: "Si el cliente no envia client_random_uuid, el server genera
-uno por request"`). The server then ASSEMBLES the real `thread_id` as
-`f"{tenant_id}:{user_id}:{client_random}"` from the AUTHENTICATED actor's
-OWN resolved identity (`get_tenant_context`/`get_live_actor`, both populated
-by `AccessControlMiddleware` from the caller's own verified access token --
-see `access_control/dependencies.py`'s own docstring) -- NEVER from anything
-in the request body. An attacker who guesses another session's
-`client_random_uuid` still cannot construct that session's real `thread_id`
-without ALSO holding that session's own valid access token, since
-`tenant_id`/`user_id` come exclusively from server-side token verification,
-never from client-supplied input.
-
-**Runs BEHIND `AccessControlMiddleware`, deliberately** -- same posture as
-`scheduling.py`/`calendar_oauth.py`: uses the request's already-open,
-RLS-scoped `request.state.db_conn` for every business/governance use case
-`build_graph()`'s nodes need, and the resolved `TenantContext`/`LiveActor`
-to build `RequestContext`. No dedicated RBAC check here -- exactly like
-every other router in this package, RBAC is enforced INSIDE the graph
-itself (`rbac_gate`), not re-checked at the router boundary.
-
-**`channel` -- `staff_copilot` for any non-`patient` role, `patient_chat`
-otherwise.** design.md §8.6 describes both channels sharing this exact
-endpoint shape/mechanism ("mismo patron... la unica diferencia es que el
-`user_id` en la key es el del staff... y el `RequestContext` incluye `role`
-y `site_id` del staff en lugar de `patient_id`") -- `LiveActor.role` is
-already resolved by the middleware, so this router derives `channel`
-directly from it rather than requiring the client to declare which one it
-is (a client-declared channel would be one more value this router would
-have to distrust and re-derive anyway).
-
-**Only `request_ctx`/`channel`/`channel_message` are passed as `graph.
-ainvoke()`'s input -- a DELIBERATE partial `KurehaState` update, never a
-full one.** LangGraph applies every key PRESENT in an `ainvoke` input dict
-as an unconditional overwrite of the checkpointed value (same "last write
-wins, no reducer" semantics as any node's own return dict) -- a full
-`KurehaState` literal with `"proposed_action": None` would WIPE turn N's
-pending `proposed_action` before `route_from_start` ever got to read it,
-breaking the entire turn-N/turn-N+1 confirmation mechanism design.md §8.9
-depends on. `test_build_graph.py`'s own confirmation-round-trip test proves
-this partial-dict shape is what actually works against the real compiled
-graph.
-
-**`get_graph_dependencies` (tasks.md task 12.3/task 12.2's adapter half, PR
-12 batch 1) -- a FastAPI dependency, not a bare function call, deliberately,
-the same pattern `get_http_client`/`test_calendar_oauth_router.py`'s
-`app.dependency_overrides[get_http_client]` already establishes.** Wires
-`GraphDependencies` with the first three real, Anthropic-backed LLM seam
-adapters (`scope_policy`/`intent_classifier`/`affirmation_classifier`, one
-shared fast-tier `ChatAnthropic`) -- overridable in tests via
-`app.dependency_overrides[get_graph_dependencies]` so the test suite never
-has to hit a real Anthropic API for THIS router's own wiring tests (see
-`tests/platform/inbound/api/routers/test_chat.py`).
-
-**PR 12 batch 2 update: every remaining `GraphDependencies` field is now
-also wired to a real adapter.** `scheduling_planner`/`staff_planner` share
-ONE reasoner-tier `ChatAnthropic` (design.md §8.10); `reminder_planner`/
-`direct_response`/`suggestion_generator` join the existing fast-tier
-`ChatAnthropic` this function already builds -- two `ChatAnthropic`
-instances total per request (one per tier), not seven. No `GraphDependencies`
-field defaults to an `Unwired*` placeholder via this dependency anymore --
-see `AnthropicSchedulingPlanner`'s own module docstring for the genuine,
-UNRESOLVED "LLM cannot invent a real database id from conversational text"
-gap that remains even though every seam is now real.
-
-**PR 12 batch 3 (tasks.md tasks 12.1/12.2/12.4): `POST /chat/stream`.** SSE
-equivalent of `chat()` below, sharing the SAME `thread_id`-assembly
-(`_assemble_turn`) and rate-limiting (`_enforce_rate_limit`) helpers --
-see `_stream_turn`'s own docstring for the SSE event mapping and this
-batch's honest, flagged scope boundary on `token` delivery (no adapter in
-this codebase streams incremental content today). `_RATE_LIMITED_CHANNELS`
-gates the patient-chat token-bucket + LLM-budget cap (design.md §19) to
-`patient_chat` only -- both `chat()` and `chat_stream()` now call
-`_enforce_rate_limit`/record `TokenUsageCallbackHandler` totals via
-`ChatRateLimiter.record_usage()` at turn-end."""
-
 import uuid
 from collections.abc import AsyncIterator
 
@@ -121,11 +38,7 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 _STAFF_ROLES = frozenset({"reception", "professional", "admin"})
 
-# design.md §19 / spec `platform-hardening` ("Rate Limiting on Patient
-# Chat"): the token-bucket + LLM-budget gate applies ONLY to the
-# patient-facing channel -- the staff copilot has no equivalent requirement
-# named anywhere in design.md/the spec suite, and is presumed trusted
-# internal usage (a deliberate, flagged scope boundary, not an oversight).
+# Token-bucket + LLM budget apply to patient_chat only (not staff_copilot).
 _RATE_LIMITED_CHANNELS = frozenset({"patient_chat"})
 
 
@@ -147,9 +60,7 @@ def _channel_for(role: str) -> str:
 def _assemble_turn(
     payload: ChatRequest, ctx: TenantContext, live_actor: LiveActor
 ) -> tuple[str, RequestContext, str]:
-    """Shared by `chat()` and `chat_stream()` -- see `chat()`'s own
-    docstring for the `thread_id` ownership-assembly contract this
-    factors out unchanged (identical for both endpoints, design.md §8.6)."""
+    """Shared thread_id / request_ctx / channel assembly for both chat endpoints."""
     client_random = payload.client_random_uuid or str(uuid.uuid4())
     thread_id = f"{ctx.tenant_id}:{live_actor.user_id}:{client_random}"
     request_ctx = RequestContext(
@@ -167,11 +78,7 @@ def _assemble_turn(
 async def _enforce_rate_limit(
     *, channel: str, ctx: TenantContext, live_actor: LiveActor, conn: AsyncConnection
 ) -> ChatRateLimiter | None:
-    """Returns the constructed `ChatRateLimiter` (for the caller to also use
-    for `record_usage()` at turn-end) when `channel` is rate-limited, `None`
-    otherwise -- `None` is a deliberate signal, not an error: the
-    staff-copilot channel is simply out of scope for this gate (see this
-    module's own `_RATE_LIMITED_CHANNELS` docstring)."""
+    """Returns the limiter for turn-end `record_usage()`, or None if channel is out of scope."""
     if channel not in _RATE_LIMITED_CHANNELS:
         return None
     rate_limiter = build_chat_rate_limiter(conn)
@@ -185,8 +92,7 @@ async def _enforce_rate_limit(
 
 
 def get_graph_dependencies() -> GraphDependencies:
-    """See this module's own docstring ("`get_graph_dependencies`") for why
-    this is a FastAPI dependency rather than a bare call inside `chat()`."""
+    """FastAPI dependency so tests can override LLM wiring."""
     fast_llm = build_chat_model("fast")
     reasoner_llm = build_chat_model("reasoner")
     return GraphDependencies(
@@ -210,11 +116,7 @@ async def chat(
     deps: GraphDependencies = Depends(get_graph_dependencies),
 ) -> ChatResponse:
     thread_id, request_ctx, channel = _assemble_turn(payload, ctx, live_actor)
-    # Raises (`RateLimitExceededError`/`LlmBudgetExceededError`) BEFORE the
-    # graph ever runs, for `patient_chat` only -- `errors.py`'s central
-    # handler maps both to the §21 `rate-limited` envelope, no special
-    # handling needed here (tasks.md task 12.1's rate-limiter/budget
-    # wiring, design.md §19).
+    # patient_chat only; RateLimitExceededError / LlmBudgetExceededError → rate-limited envelope.
     rate_limiter = await _enforce_rate_limit(channel=channel, ctx=ctx, live_actor=live_actor, conn=conn)
     usage_handler = TokenUsageCallbackHandler()
 
@@ -228,11 +130,7 @@ async def chat(
         )
 
     if rate_limiter is not None and usage_handler.total_tokens:
-        # design.md §19: "al finalizar el turno, el middleware suma los
-        # tokens usados" -- best-effort turn-end accounting, never blocks
-        # the response (a failed record here would need its own
-        # non-blocking posture; see `TokenUsageCallbackHandler`'s own
-        # docstring for why `total_tokens` may legitimately be `0`).
+        # Best-effort turn-end token accounting; never blocks the response.
         await rate_limiter.record_usage(tenant_id=ctx.tenant_id, tokens_used=usage_handler.total_tokens)
 
     return ChatResponse(
@@ -257,67 +155,19 @@ async def _stream_turn(
     live_actor: LiveActor,
     deps: GraphDependencies,
 ) -> AsyncIterator[str]:
-    """The `/chat/stream` SSE body generator (design.md §8.5/§8.7, tasks.md
-    tasks 12.1/12.2/12.4).
+    """SSE body for `/chat/stream`.
 
-    **Honest scope boundary, flagged explicitly (not silently oversold):**
-    design.md §8.5's `stream_mode=["messages","updates","custom"]` call
-    shape is used VERBATIM below, but no LLM adapter in this codebase
-    generates incrementally today -- every one of the 8 real Anthropic
-    adapters (PR 12 batches 1-2) calls `.with_structured_output(...).
-    ainvoke()`, a single-shot call, never `.astream()`. Confirmed
-    empirically this batch: LangGraph's `stream_mode="messages"` only
-    surfaces genuine token deltas for a chat-model call that itself streams
-    internally -- an `.ainvoke()` call yields at most one complete chunk,
-    if any. `token` events below are therefore built by taking the graph's
-    FINAL `response_text` (observed via the `respond` node's own `updates`
-    chunk -- `respond` is the one node every path in `build_graph.py`
-    passes through immediately before `END`) and re-segmenting it through
-    `SentenceBoundaryBuffer` + `guard_sentence_units` for INCREMENTAL,
-    guard-gated delivery -- real value (smaller SSE frames, a genuine
-    SECOND independent output-guard pass per spec `clinical-safety`'s
-    "Output is checked even if input filtering is evaded"), but not
-    concurrent-with-generation the way design.md's prose describes. The
-    exact same pipeline starts doing that the moment a future batch swaps
-    any adapter's underlying call for a real `.astream()` -- zero changes
-    needed here. `status` events (`custom` stream_mode, `streaming/
-    status_writer.py`) ARE genuinely live/incremental today -- they fire
-    from within `resolve_toolset`/`scheduling_agent`/`staff_agent`/
-    `reminders_agent`/`calendar_sync` as the graph actually executes those
-    nodes, interleaved chronologically with the `updates` chunks below in
-    the SAME `astream()` loop.
+    Opens its own DB connection via `build_runtime_session()` — do not reuse
+    `request.state.db_conn`: AccessControlMiddleware (BaseHTTPMiddleware) closes
+    that connection when the StreamingResponse object is returned, before this
+    generator runs.
 
-    **Every exception, from rate-limiting through a mid-guard refusal
-    through an unmapped internal error, becomes an `error` SSE event via
-    `resolve_error()` (design.md §21: "toda la superficie... eventos error
-    de SSE") -- never an unhandled exception escaping a `StreamingResponse`
-    body iterator** (FastAPI's own registered exception handlers cannot
-    intercept an exception raised here: response headers/the 200 status
-    line are already sent by the time this generator starts yielding).
+    Exceptions become an `error` SSE event via `resolve_error()` (headers/200
+    already sent; FastAPI exception handlers cannot intercept here).
 
-    **Opens its OWN dedicated `AsyncConnection` (`build_runtime_session().
-    begin(live_actor)`) instead of reusing `request.state.db_conn` --
-    confirmed empirically, a genuine `StreamingResponse` +
-    `AccessControlMiddleware` incompatibility, not a style choice.**
-    `AccessControlMiddleware` (a `BaseHTTPMiddleware` subclass) commits and
-    CLOSES its request-scoped connection in a `finally` block wrapped
-    around `call_next(request)` -- for a normal JSON endpoint this is safe
-    (the route function runs to completion, including every DB write,
-    BEFORE returning), but Starlette's `BaseHTTPMiddleware` resolves
-    `call_next()` as soon as the route function returns its `Response`
-    OBJECT, which for a `StreamingResponse` is BEFORE this generator has
-    produced a single chunk -- the middleware's `finally` then closes the
-    connection while this generator has not even started running yet.
-    Reproduced directly against a real Postgres connection this session:
-    `sqlalchemy.exc.ResourceClosedError: This Connection is closed` the
-    instant `build_graph()` tried to use `request.state.db_conn`. The fix
-    mirrors EXACTLY what `AccessControlMiddleware._forward_with_session`
-    itself does (`EngineRuntimeSession.begin`/`.end`), just re-run HERE,
-    inside the generator, so the connection's lifetime is scoped to the
-    STREAM, not to the middleware's `call_next()` return. Committed on a
-    clean generator exit, rolled back on any exception (mirrors the
-    middleware's own `commit = response.status_code < 500` posture) --
-    always closed in a `finally`."""
+    Token events are sentence-buffered + guard-gated from final response_text
+    (adapters use ainvoke today); status events from stream_mode=custom are live.
+    """
     thread_id, request_ctx, channel = _assemble_turn(payload, ctx, live_actor)
     rate_limiter: ChatRateLimiter | None = None
     runtime_session = build_runtime_session()
@@ -344,10 +194,6 @@ async def _stream_turn(
                     elif stream_mode == "updates":
                         for _node_name, partial in chunk.items():
                             accumulated_state.update(partial)
-                    # "messages": no adapter streams real content today --
-                    # see this function's own docstring. Requested anyway
-                    # (design.md's literal call shape) so this loop needs
-                    # zero changes once one does.
 
             final_text = accumulated_state.get("response_text") or ""
             tenant_ctx = request_ctx.to_tenant_context()
@@ -360,13 +206,7 @@ async def _stream_turn(
                 ):
                     yield format_sse_event("token", {"delta": approved_unit})
             finally:
-                # Recorded here, not after the loop -- `guard_sentence_units`
-                # itself spends real tokens per sentence-boundary unit
-                # (`usage_handler` above is shared with it, see that
-                # module's own docstring), so a mid-stream
-                # `ResponseGuardStreamRefusal`/any other exception must
-                # still report whatever was accumulated up to that point,
-                # not silently drop it from the tenant's daily budget.
+                # Record even on mid-stream refusal — guard spend must still count.
                 if rate_limiter is not None and usage_handler.total_tokens:
                     await rate_limiter.record_usage(tenant_id=ctx.tenant_id, tokens_used=usage_handler.total_tokens)
 
@@ -379,7 +219,7 @@ async def _stream_turn(
                 },
             )
             ok = True
-        except Exception as exc:  # noqa: BLE001 -- the §21 translation boundary itself, see docstring
+        except Exception as exc:  # noqa: BLE001 -- map to SSE error envelope
             resolved = resolve_error(exc)
             yield format_sse_event("error", resolved.envelope.to_dict())
     finally:
@@ -393,13 +233,5 @@ async def chat_stream(
     live_actor: LiveActor = Depends(get_live_actor),
     deps: GraphDependencies = Depends(get_graph_dependencies),
 ) -> StreamingResponse:
-    """`POST /chat/stream` (design.md §8.5, tasks.md task 12.1): SSE
-    (`text/event-stream`) equivalent of `POST /chat` above -- same
-    auth/`thread_id`-ownership/rate-limiting contract, streamed
-    `status`/`token`/`done`/`error` events instead of one JSON body. See
-    `_stream_turn`'s own docstring for the exact event-mapping, the
-    dedicated-connection fix this endpoint needs (that `POST /chat` does
-    NOT), and this batch's honest scope boundary on `token` delivery. Takes
-    NO `conn` dependency, deliberately -- see `_stream_turn`'s own
-    docstring for why reusing `request.state.db_conn` here is unsafe."""
+    """SSE chat; no `conn` dependency — see `_stream_turn` for why."""
     return StreamingResponse(_stream_turn(payload, ctx, live_actor, deps), media_type="text/event-stream")

@@ -30,6 +30,11 @@
 * Preserve shadcn/ui accessibility behavior.
 * Ensure keyboard navigation and focus states work correctly.
 
+### Comments
+
+* Minimal. Never cite `tasks.md`, specs, `design.md`, ADRs, or PR/work-unit history in code.
+* Keep a comment only for non-obvious constraints (security/auth tradeoffs, wire-format quirks, documented gaps) — never narrative essays or restatements of the identifier.
+
 ### Agent Rules
 
 Before creating custom UI:

@@ -1,21 +1,3 @@
-"""`PostgresSchedulingRepository`: `SchedulingRepositoryPort` adapter over
-`appointments` (design.md §4.1, migration 3505dc8ce3ad).
-
-Takes an already-open `AsyncConnection` rather than owning an engine, same
-pattern every other postgres adapter in this codebase follows. Composition
-root (tasks.md task 10.2) MUST construct this against `app.db.runtime_engine`
-(`app_runtime`, RLS-enforced) with the request's `SET LOCAL app.*` GUCs
-already applied -- never `app.db.engine` for a request-scoped query.
-
-`create_appointment`/`reschedule_appointment` catch `sqlalchemy.exc.
-IntegrityError` and translate it to `SlotUnavailableError` -- the ONLY
-integrity constraint an authorized, well-formed INSERT/UPDATE against this
-table can hit is the `EXCLUDE USING gist` anti double-booking constraint
-(design.md §4.1); every FK/CHECK violation would mean the caller passed a
-nonexistent id or bad status, which the use-case layer already guards
-against via `AvailabilityRepositoryPort`/`get_appointment` lookups before
-reaching here."""
-
 from datetime import datetime
 
 from sqlalchemy import text

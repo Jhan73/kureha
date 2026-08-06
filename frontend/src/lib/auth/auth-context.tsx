@@ -27,21 +27,13 @@ export interface AuthUser {
 }
 
 export interface AuthContextValue {
-  /** In-memory only, per tasks.md 14.1's "access-token-in-memory strategy" -- never persisted. */
+  /** In-memory only — never persisted. */
   accessToken: string | null;
   user: AuthUser | null;
-  /**
-   * Resolves with the freshly authenticated `AuthUser` (tasks.md 15.1) --
-   * NOT just `Promise<void>` -- so a caller that needs to branch on the
-   * just-resolved `role` (e.g. `/staff/login`'s "reject a patient account"
-   * check) can do so directly in its own event handler, without an
-   * `useEffect` racing this context's own internal `setUser` update (a
-   * stale-closure hazard: reading `user` from this component's own render
-   * right after `await login(...)` would still see the PRE-login value).
-   */
+  /** Returns the user; context state updates only on the next render. */
   login: (params: LoginParams) => Promise<AuthUser>;
   logout: () => Promise<void>;
-  /** Attempts to mint a new access token from the persisted refresh token. Returns whether it succeeded. */
+  /** Mint access token from persisted refresh token; returns success. */
   silentRefresh: () => Promise<boolean>;
   authorizedFetch: (path: string, init?: RequestInit) => Promise<Response>;
 }
@@ -55,9 +47,6 @@ function userFromTokens(tokens: TokenResponse): AuthUser {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
-  // Tracked in state (not a ref) so every closure that reads it -- direct or
-  // via useMemo/useCallback -- always sees the value from the render that
-  // produced it, no `ref.current`-during-render lint hazard.
   const [refreshToken, setRefreshToken] = useState<string | null>(null);
 
   const applyTokens = useCallback((tokens: TokenResponse): AuthUser => {
@@ -93,9 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           refreshToken: currentRefreshToken,
         });
       } catch {
-        // Best-effort revoke: still clear local state below regardless --
-        // the access token is short-lived anyway, and there is no recovery
-        // action worth blocking the user's own logout on.
+        // Best-effort revoke: clear local state regardless, never block logout.
       }
     }
     clearAuth();

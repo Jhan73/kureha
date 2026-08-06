@@ -1,9 +1,5 @@
-"""Task 3.3: `AuditEntry` domain (design.md §4.3) -- construction and the
-`AuditAction` catalog match the §4.3 list exactly."""
-
 from app.modules.governance.audit.domain.audit_entry import AuditAction, AuditActorType, AuditEntry
 
-# design.md §4.3's exact action catalog paragraph.
 _EXPECTED_ACTIONS = {
     "rbac.denied",
     "rbac.granted",
@@ -22,55 +18,12 @@ _EXPECTED_ACTIONS = {
     "hitl.reject",
     "scope.escalate",
     "consent.block",
-    # Added by Phase 4 (identity module, tasks.md task 4.3/4.6): design.md
-    # §4.3's catalog paragraph predates the identity module and has no entry
-    # for "an authenticated identity resolved to no `users` row" -- the
-    # `user-authentication` spec's "Authenticated Identity Maps to
-    # Authorization Context" requirement explicitly mandates this be audited
-    # ("the attempt MUST be audited"). Flagged here, not silently added --
-    # see app/modules/governance/audit/domain/audit_entry.py's docstring.
     "auth.unmapped_identity",
-    # Added by Phase 5 (access-control middleware, tasks.md task 5.1): the
-    # live active-status gate (design.md §4.2 -- "Gate de estado activo
-    # vivo") explicitly requires "se deniega y audita" when `users.status`
-    # or `staff_members.status` is not 'active', even though an access
-    # token is still cryptographically valid. No existing catalog entry
-    # covers this distinct cause (`auth.unmapped_identity` is "no users row
-    # at all", not "row found but inactive").
     "auth.inactive_actor",
-    # Added by Phase 5 (rate-limit middleware, tasks.md task 5.3): the
-    # `platform-hardening` spec's "Rate Limiting on Authentication
-    # Endpoints" requires the throttling event itself be auditable
-    # ("the throttling event MUST be auditable").
     "auth.rate_limited",
-    # Added by Phase 5 (rate-limit middleware, tasks.md task 5.3): design.md
-    # §19's LLM daily budget cap is explicit -- "El log de consumo se
-    # audita en audit_logs con action='llm.budget_exceeded' cuando el cap
-    # se alcanza."
     "llm.budget_exceeded",
-    # Added by Phase 7 (scheduling module, tasks.md task 7.3): the
-    # `appointment-scheduling` spec's "Reminders and Confirmations"
-    # requirement is explicit -- "Every delivery attempt MUST be logged to
-    # the audit trail." No existing catalog entry covers a reminder dispatch
-    # attempt (as opposed to a create/reschedule/cancel mutation), so this is
-    # a new entry following the exact `resource.verb` convention every other
-    # one already uses -- flagged here, not silently added.
     "appointment.reminder_sent",
-    # Added by Phase 10 (calendar OAuth2 callback router, tasks.md task
-    # 10.1): design.md §7.3's anti-CSRF `state` check is a security control
-    # on the callback route -- a mismatched/missing `state` is a genuine
-    # CSRF-attempt signal, distinct from `calendar.connect`'s existing
-    # `status=email_mismatch` payload branch. Task 10.1's own text requires
-    # this exact catalog entry.
     "calendar.oauth_csrf_attempt",
-    # Added by the staff-invite/password-reset batch: `ProvisionStaffIdentity`
-    # (identity module) is the FIRST real `users`+`user_credentials`
-    # provisioning path in this codebase (design.md §17 extension -- new
-    # staff accounts are provisioned by admin/reception INVITING an email
-    # via Supabase, never by an admin setting a temporary password). No
-    # existing entry represents "a new authenticatable identity/credential
-    # was created" -- distinct from `staff.register` (the SEPARATE
-    # `staff_members` operational-registry row).
     "auth.credential_created",
 }
 

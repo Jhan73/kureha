@@ -1,70 +1,3 @@
-"""`build_graph()` (design.md §8.2/§8.3/§8.6, tasks.md task 11.6): wires
-every node from batches 1-3 (17 nodes total: 8 from batch 1, 2 from batch 2,
-7 from this batch) plus `route_from_start` into ONE compiled
-`StateGraph(KurehaState)`, exactly per design.md §8.3's edge diagram.
-
-**Deliberate construction-time choice, documented not guessed (per this
-task's own instruction): a FRESH graph is compiled PER REQUEST, not once at
-app startup.** `app/main.py`'s existing singletons (`app.db.engine`/
-`runtime_engine`, `app.state.http_client`) are all STATELESS resource
-FACTORIES/POOLS -- any number of concurrent callers can safely check out
-their own connection/request from them. A compiled `StateGraph`, by
-contrast, is compiled WITH a fixed set of node closures already bound to
-whichever `AsyncConnection`/ports they close over (`persist_and_audit`/
-`calendar_sync` need the SAME already-RLS-scoped `conn` every other router
-uses for this specific request, exactly like `build_schedule_appointment
-(conn)` in `routers/scheduling.py`) -- a graph compiled ONCE at startup
-could not later be handed a DIFFERENT request's connection without either
-(a) smuggling it through `KurehaState` (rejected -- this whole package's
-established precedent, batch 1's own docstring: "state carries data only,
-never collaborators") or (b) a second per-node-call indirection layer this
-batch does not need to invent. Compiling a `StateGraph` is CHEAP, pure
-in-process wiring (no I/O -- `add_node`/`add_edge`/`add_conditional_edges`
-are all synchronous dict/graph-structure mutations; `checkpointer=...` is
-the only thing that touches Postgres, and callers already own that
-resource's lifetime) -- unlike opening a DB connection, so "compile once vs
-per request" is a non-issue for latency/cost; the constraint that actually
-forces this choice is connection OWNERSHIP/lifetime, not performance.
-`build_graph()` is therefore called once per request by task 11.7's chat
-endpoint, the same way `build_schedule_appointment(conn)` and every other
-`build_*` composition-root factory already is.
-
-**`AsyncPostgresSaver.setup()` is deliberately NOT called here or anywhere
-in this batch.** Migration `043b5dd9768e` already ran the (sync twin)
-`PostgresSaver.setup()` against this same DDL (`langgraph.checkpoint.
-postgres.base.MIGRATIONS`, shared by both the sync and async savers) AND
-already enabled+forced RLS with the `thread_id`-tenant-prefix policy on
-`checkpoints`/`checkpoint_writes`/`checkpoint_blobs` (see that migration's
-own docstring for why it used the sync saver, not the async one, from
-inside Alembic). Calling `.setup()` again at request or startup time would
-just re-run the SAME idempotent internal migration-tracking check
-(`checkpoint_migrations`) for no benefit -- the schema is already correct
-and already RLS-enforced from the migration itself.
-
-**FLAGGED, unresolved gap: RLS on `checkpoints`/`checkpoint_writes`/
-`checkpoint_blobs` requires `current_setting('app.tenant_id')` to be SET on
-whichever physical connection the checkpointer uses for its own
-reads/writes -- this module does not set it.** `langgraph-checkpoint-
-postgres` requires a `psycopg` (not `asyncpg`) connection/pool, a
-COMPLETELY SEPARATE physical connection from the SQLAlchemy `conn` this
-module's other nodes share (that one goes through `asyncpg`, per
-`app.db`'s own docstring) -- there is no shared transaction between the
-two, and nothing in `langgraph-checkpoint-postgres` itself knows to run a
-tenant-scoped `SET LOCAL app.tenant_id` before its own internal
-`SELECT`/`INSERT` statements against those three tables. Task 11.7's chat
-endpoint (the only real caller of `build_graph()` today) is responsible for
-handing this function an ALREADY-tenant-scoped checkpointer connection --
-see that router's own module docstring for exactly how it does this
-(`SET LOCAL app.tenant_id` on the checkpointer's dedicated psycopg
-connection, mirroring `session_context.py`'s GUC-setting convention, before
-constructing `AsyncPostgresSaver`). This module accepts `checkpointer` as
-an already-constructed collaborator specifically so it never has to make
-that decision itself -- but the decision is real, and worth a dedicated
-follow-up: a checkpointer backed by a genuinely POOLED psycopg connection
-(reused across many requests/tenants over its lifetime, unlike this
-per-request-scoped approach) would need a `configure`/per-checkout GUC-reset
-mechanism this codebase does not have yet."""
-
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -131,17 +64,7 @@ _STAFF_INTENTS = frozenset({"staff", "shift"})
 
 @dataclass
 class GraphDependencies:
-    """Every LLM-shaped seam port `build_graph()` needs, defaulted to the
-    `Unwired*` placeholders (`adapters/unwired.py`'s own module docstring)
-    since no real LLM adapter exists anywhere in this codebase yet (tasks.md
-    Phase 12's job) -- a caller (task 11.7's chat endpoint today) overrides
-    whichever ones a later phase wires for real, without every OTHER field
-    needing to change. `calendar_sync_port`/`credential_vault` default to
-    `None` -- harmless as long as no turn ever reaches `calendar_sync` with
-    them unset (the `Unwired*` classifiers/planners raise long before that
-    could happen for a real conversational turn; a `web_form` schedule with
-    a genuinely connected calendar is the one path that WOULD need them
-    real)."""
+    """LLM/calendar seam ports for `build_graph()`; defaults are Unwired* placeholders."""
 
     intent_classifier: IntentClassifierPort = field(default_factory=UnwiredIntentClassifier)
     scheduling_planner: SchedulingPlannerPort = field(default_factory=UnwiredSchedulingPlanner)
@@ -156,9 +79,6 @@ class GraphDependencies:
 
 
 def _route_from_start(state: KurehaState) -> str:
-    """design.md §8.2's own literal shape: `graph.add_conditional_edges(
-    START, lambda s: "confirmation_gate" if s.get("proposed_action") else
-    "triage")`."""
     return "confirmation_gate" if state.get("proposed_action") else "triage"
 
 
@@ -190,28 +110,16 @@ def _route_by_rbac(state: KurehaState) -> str:
 
 
 def _make_route_after_confirmation(action_risk: ActionRiskPort):
-    """Merges design.md §8.3's `confirmation_gate`'s three-way branch WITH
-    `route_by_risk` into one conditional-edge function -- LangGraph routes
-    to actual NODE names, not to another router, so `route_by_risk` cannot
-    be a separate hop the way design.md's prose names it. Reads
-    `ActionRiskPort` live, itself -- `hitl_approval` (batch 2) already
-    independently re-derives `requires_hitl` internally for audit-payload
-    purposes, but a conditional edge function cannot call a node's
-    internals to make its OWN routing decision (this task's own
-    instruction), so this is the SAME port, a SECOND live read, by
-    design."""
+    """Routes after confirmation: response_guard | hitl_approval | persist_and_audit.
+
+    Re-reads ActionRiskPort here (LangGraph edges cannot call node internals)."""
 
     async def route_after_confirmation(state: KurehaState) -> str:
         if state.get("confirmation") not in ("not_required", "affirmed"):
-            # "needed" (Caso B, first ask) or None (Caso C decline) --
-            # both terminate the turn via response_guard -> respond -> END.
             return "response_guard"
 
         proposed_action = state.get("proposed_action")
         if proposed_action is None:
-            # Structurally unreachable (both entry edges into
-            # confirmation_gate only fire with a proposed_action) --
-            # guarded defensively, matching every other node's own posture.
             return "persist_and_audit"
 
         if state.get("risk_level") == "high":
@@ -229,12 +137,7 @@ def _route_by_approval(state: KurehaState) -> str:
 
 
 async def _patient_has_connected_calendar(conn: AsyncConnection, ctx, patient_id: str) -> bool:
-    """Re-scopes `conn` to `app.role='patient'` for the duration of this
-    ONE read (`role_scope.py`'s `scoped_as_patient`, the SAME mechanism
-    `build_sync_appointment_to_calendar` uses for the dual-role RLS gap) --
-    `calendar_credentials`' only RLS policy (`calendar_credentials_self`)
-    requires it regardless of whether the CALLING actor is staff or the
-    patient themselves."""
+    """RLS: calendar_credentials_self requires app.role='patient' for this read."""
     credential_repository = PostgresCalendarCredentialRepository(conn)
     async with scoped_as_patient(conn, patient_id=patient_id, restore_role=ctx.role):
         credential = await credential_repository.get(ctx.tenant_id, patient_id)
@@ -267,20 +170,10 @@ def _route_by_response_scope(state: KurehaState) -> str:
 async def build_graph(
     conn: AsyncConnection, *, checkpointer: BaseCheckpointSaver, deps: GraphDependencies | None = None
 ) -> Any:
-    """Compiles the FULL 17-node graph (design.md §8.2/§8.3) for ONE
-    request, bound to `conn` (the SAME already-RLS-scoped connection every
-    other router in this codebase uses, e.g. `get_db_conn`/
-    `build_schedule_appointment(conn)`) and `checkpointer` (see this
-    module's own docstring for the deliberate choice of NOT constructing
-    one here). `deps` defaults to every seam port's `Unwired*` placeholder
-    -- see `GraphDependencies`'s own docstring."""
+    """Compile the request-scoped graph on the RLS-scoped `conn` + checkpointer."""
     deps = deps or GraphDependencies()
 
-    # ONE fresh `PermissionService` for this request (design.md §5.6/ADR-16
-    # -- see `build_permission_service`'s own docstring: never a singleton),
-    # shared by `AuthorizeAction` (`rbac_gate`) and `ListAllowedActions`
-    # (`resolve_toolset`) -- both need the SAME `AuthorizationPort` a real
-    # request's memo would otherwise duplicate for no reason.
+    # Fresh PermissionService per request (never a singleton); shared by rbac_gate + resolve_toolset.
     permission_service = build_permission_service(conn)
     authorize_action = AuthorizeAction(permission_service)
     list_allowed_actions = ListAllowedActions(permission_service)

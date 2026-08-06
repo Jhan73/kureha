@@ -1,10 +1,3 @@
-"""Task 2.10: RLS isolation for checkpoints/checkpoint_writes/checkpoint_blobs
-(migration 043b5dd9768e), keyed by `split_part(thread_id, ':', 1)` -- design.md
-§4.4/§8.6. `app_runtime` must only see checkpoint rows whose `thread_id`
-tenant prefix matches `app.tenant_id`, even though the raw `thread_id` string
-of another tenant's thread is technically knowable/guessable.
-"""
-
 import sqlalchemy as sa
 
 from tests.rls.helpers import set_app_context

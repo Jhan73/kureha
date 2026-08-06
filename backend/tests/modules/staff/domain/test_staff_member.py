@@ -1,6 +1,3 @@
-"""Task 8.1: `StaffMember` domain (design.md §4.4/§6's `staff_members` table
-shape). Pure value object -- operational-status invariant only, no IO."""
-
 from datetime import datetime, timezone
 
 import pytest

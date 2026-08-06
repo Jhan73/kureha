@@ -1,8 +1,3 @@
-"""Task 3.2: `PostgresConsentRegistry` -- integration test hitting real
-`consent_policies`/`consents` tables through the RLS-enforced `app_runtime`
-role (`rls_conn` fixture, never `db_conn`/`app_user` -- see PR 3's
-apply-progress on why using the wrong engine silently defeats RLS)."""
-
 import sqlalchemy as sa
 
 from app.modules.governance.consent.adapters.outbound.postgres.consent_registry import (
@@ -108,15 +103,6 @@ async def test_get_consent_check_data_returns_both_in_a_single_query(rls_conn) -
 
 
 async def test_get_latest_consent_is_deterministic_when_accepted_at_ties(rls_conn) -> None:
-    """Two consent rows sharing the exact same `accepted_at` must not make
-    `LIMIT 1` flaky. `consents.id` is a random `gen_random_uuid()` (no
-    monotonic/insertion-order column exists in the schema), so `id DESC`
-    cannot guarantee "the truly latest row wins" -- it only guarantees the
-    query returns the SAME row every time instead of an arbitrary one at the
-    planner's discretion. A schema change (e.g. a monotonic `inserted_at`/
-    `seq` column) would be needed for true latest-wins tie-breaking; tracked
-    as a follow-up for whoever builds the accept/revoke write path, not
-    fixed here since no write path exists yet in this PR."""
     tenant_id = await seed_tenant(rls_conn)
     site_id = await seed_site(rls_conn, tenant_id)
     await seed_consent_policy(rls_conn, tenant_id, version="2026.1", is_current=True)

@@ -1,7 +1,3 @@
-"""Task 9.5: `RetryBackoffPolicy` -- pure, IO-free backoff/attempts-cap rule
-for the calendar-sync reconciliation job (design.md §7.5: "Un job acotado
-reintenta ... con backoff y tope de attempts")."""
-
 from datetime import datetime, timedelta, timezone
 
 from app.modules.calendar.domain.retry_backoff_policy import RetryBackoffPolicy

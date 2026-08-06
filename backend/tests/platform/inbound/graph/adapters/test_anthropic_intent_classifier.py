@@ -1,8 +1,3 @@
-"""tasks.md task 12.2's adapter half: `AnthropicIntentClassifier`, the real
-`IntentClassifierPort` adapter `triage` consumes (design.md §8.2/§8.10). No
-real network -- same fake-chat-model precedent as
-`test_anthropic_scope_policy.py`."""
-
 import pytest
 
 from app.platform.inbound.graph.adapters.anthropic_intent_classifier import AnthropicIntentClassifier
@@ -76,11 +71,6 @@ async def test_classify_sends_the_channel_message_to_the_model() -> None:
 
 
 async def test_classify_fails_closed_to_unknown_on_an_llm_error() -> None:
-    """An unrouteable/invalid classification must never silently pick a real
-    intent it has no basis for -- `unknown` is the ONE category
-    `build_graph.py`'s `_route_by_intent` already routes to `escalate_human`
-    for, so failing closed here never lets a malformed classification
-    silently reach a specialist agent."""
     llm = _FakeChatModel(ValueError("boom"))
     classifier = AnthropicIntentClassifier(llm)
 

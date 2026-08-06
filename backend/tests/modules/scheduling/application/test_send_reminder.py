@@ -1,9 +1,3 @@
-"""Task 7.3: `SendReminder` use case -- `authorize` first, then attempt
-delivery via `ReminderChannelPort` (a channel failure MUST NOT raise, spec
-`appointment-scheduling` -> "Channel port failure does not break
-scheduling"), and log every attempt to the audit trail regardless of
-outcome. Fakes only, no DB."""
-
 import pytest
 
 from datetime import datetime, timezone
@@ -139,9 +133,6 @@ async def test_failed_delivery_returns_false_and_audits_without_raising() -> Non
 
 
 async def test_channel_exception_does_not_break_scheduling_flow() -> None:
-    """Spec `appointment-scheduling` -> "Channel port failure does not break
-    scheduling": even an unhandled exception from the channel port must not
-    propagate out of this use case."""
     channel = _FakeReminderChannel(raises=True)
     audit = _FakeAuditLog()
     use_case = SendReminder(

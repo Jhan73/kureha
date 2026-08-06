@@ -1,11 +1,3 @@
-"""Task 2.6: staff_members, shifts (design.md §4.4, §6).
-
-`staff_members` is operational registry only (no HR fields). Deactivation
-never deletes (`status='inactive'` + `deactivated_at`). `shifts` gets the
-same anti-overlap `EXCLUDE USING gist` pattern as `availability`/
-`appointments` (design.md §4.1/§4.4), scoped per `staff_member_id`.
-"""
-
 import sqlalchemy as sa
 from sqlalchemy.exc import IntegrityError
 

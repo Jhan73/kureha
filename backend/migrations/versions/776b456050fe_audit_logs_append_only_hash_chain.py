@@ -1,39 +1,8 @@
-"""audit_logs append only hash chain
+"""Add audit_logs with append-only triggers and per-tenant hash chain.
 
-Task 2.4 (openspec/changes/kureha-mvp/tasks.md, Phase 2). Schema + triggers
-per design.md §4.3. Two independent defenses, both created here:
-
-1. Permission layer (`REVOKE`/`GRANT`): `app_user` can only INSERT/SELECT.
-   NOTE (deviation, flagged): in the current local/dev setup `app_user` is
-   the Postgres bootstrap superuser (see docker-compose.yml POSTGRES_USER)
-   and therefore bypasses GRANT/REVOKE entirely -- this layer is presently a
-   no-op locally and only takes effect once a properly restricted `app_user`
-   role (design.md §4.2: "sin BYPASSRLS") is introduced. Flagged as a risk
-   for the RLS work unit (task 2.9+), not fixed here (out of this task's
-   scope, and superuser role provisioning is infra, not a Postgres schema
-   migration concern).
-2. Trigger layer (`trg_audit_no_update` + `trg_audit_no_truncate`): rejects
-   UPDATE/DELETE/TRUNCATE unconditionally, regardless of role/privileges --
-   this is what actually enforces append-only today, including against the
-   superuser role above.
-   NOTE (review fix, flagged not silently applied -- see apply-progress):
-   `trg_audit_no_update` is `FOR EACH ROW`, and Postgres row-level triggers
-   never fire on TRUNCATE -- the REVOKE naming TRUNCATE gave a false sense of
-   coverage with no matching trigger-level defense. `trg_audit_no_truncate`
-   (`FOR EACH STATEMENT`, reusing `audit_immutable()` since it only reads
-   `TG_OP`, not `NEW`/`OLD`) closes that gap. Also, the REVOKE below now
-   guards on the role existing (`DO $$ ... IF EXISTS ...`) so this migration
-   does not hard-abort in an environment where `app_user` (docker-compose's
-   `POSTGRES_USER`) is named differently -- the superuser-bypass caveat above
-   is unchanged and still deferred to task 2.9+.
-
-`digest()` (used by `audit_hash_chain()`) is provided by the `pgcrypto`
-extension. design.md's §4.3 SQL sketch uses it without declaring where the
-extension comes from; `pgcrypto` has been added to
-`infra/postgres/init/01_extensions.sql` (same non-migration convention as
-`btree_gist`, since `CREATE EXTENSION` needs superuser and app_user may not
-have it on RDS) -- flagged as a design-doc gap filled here, not silently
-assumed.
+REVOKE/GRANT is no-op while app_user is the bootstrap superuser; row +
+statement triggers enforce immutability. digest() needs pgcrypto
+(infra/postgres/init). REVOKE is guarded with IF EXISTS on the role.
 
 Revision ID: 776b456050fe
 Revises: 5975cbe7665e
@@ -115,10 +84,7 @@ def upgrade() -> None:
         """
     )
 
-    # Hash-chain: each row references the previous row's hash within the
-    # SAME tenant_id (ADR-8 -- the chain does not span tenants). The
-    # advisory lock serializes concurrent inserts for a given tenant within
-    # the transaction (released automatically at COMMIT/ROLLBACK).
+    # Per-tenant hash chain; advisory lock serializes concurrent inserts.
     op.execute(
         """
         CREATE FUNCTION audit_hash_chain() RETURNS trigger AS $$

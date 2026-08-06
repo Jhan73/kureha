@@ -1,18 +1,3 @@
-"""CRITICAL fix #2 (fresh-review pass, kureha-mvp PR 6): `CheckRateLimit`
-(`auth_rate_limit_middleware.py`) is `Callable[[str], Awaitable[bool]]`,
-called positionally as `check_rate_limit(subject)`. `FixedWindowRateLimiter
-.check` is keyword-only (`dimension`/`subject`/`window_seconds`/`limit`/
-`tenant_id`/`by`) and cannot satisfy that shape directly.
-`build_auth_ip_rate_limit_check` closes over a fixed `dimension="auth_ip"`,
-`window_seconds`, and `limit`, exposing the single-positional-`str`-arg
-shape `AuthRateLimitMiddleware` requires.
-
-Wires a REAL `FixedWindowRateLimiter` (not a fake) to a fake
-`RateCounterStorePort`, proving the adapter actually reaches
-`FixedWindowRateLimiter.check` with the right dimension/window/limit --
-`test_fixed_window_limiter.py` already proves the limiter's own math, this
-test only proves the adapter's wiring."""
-
 from datetime import datetime, timezone
 
 from app.platform.inbound.api.rate_limit.auth_rate_limit_middleware import build_auth_ip_rate_limit_check

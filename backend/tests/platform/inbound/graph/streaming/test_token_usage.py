@@ -1,20 +1,3 @@
-"""`TokenUsageCallbackHandler` (design.md §19, tasks.md task 12.1's rate-
-limiter/budget wiring): a LangChain `AsyncCallbackHandler` that aggregates
-`AIMessage.usage_metadata.total_tokens` across every LLM call made during
-ONE graph turn -- passed via `config={"callbacks": [...]}` to `graph.
-ainvoke()`/`graph.astream()`, so `LlmBudgetGuard.record_usage()` can be
-called with a real total at the end of the turn (design.md §19: "al
-finalizar el turno, el middleware suma los tokens usados").
-
-**Defensive by construction, not guessed:** whether `ChatAnthropic.with_
-structured_output(...).ainvoke()` (every real LLM adapter in this codebase)
-surfaces `usage_metadata` transparently through LangChain's callback
-machinery is UNVERIFIED against a live API in this environment (PR 12 batch
-2's own flagged gap) -- `on_llm_end` here defensively `getattr`s every field
-so a shape mismatch yields `0` for that call instead of crashing the whole
-turn; the aggregation logic itself is proven directly against a synthetic
-`LLMResult`, LangChain's own stable, documented callback shape."""
-
 from langchain_core.messages import AIMessage
 from langchain_core.outputs import ChatGeneration, LLMResult
 

@@ -1,8 +1,3 @@
-"""Task 9.4: `PostgresPatientEmailLookup` -- `PatientEmailLookupPort` adapter
-reading `patients.email` (design.md §7.3, migration 8fc0dc6f958d). Uses
-`rls_conn` scoped as `role='patient'` (the `patients_self` policy, migration
-613f9ea3526f) -- matches how `ConnectPatientCalendar` actually runs."""
-
 from sqlalchemy import text
 
 from tests.rls.helpers import seed_patient, seed_site, seed_tenant, set_app_context

@@ -1,10 +1,3 @@
-"""Task 11.2: the graph-local LLM-backed "planner"/"classifier" seam
-Protocols this batch defines (no adapter exists yet for any of them --
-mirrors `ClinicalScopePolicy`'s own precedent, see each port module's
-docstring). Shape-only tests, matching
-`tests/modules/governance/scope/test_scope_policy.py`'s own precedent for
-testing a Protocol-only seam."""
-
 import inspect
 
 from app.platform.inbound.graph.ports.affirmation_classifier import (

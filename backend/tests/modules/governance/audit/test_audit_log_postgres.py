@@ -1,7 +1,3 @@
-"""Task 3.3: `PostgresAuditLog` -- integration test hitting the real
-`audit_logs` table (append-only + hash-chain, migration `776b456050fe`)
-through the RLS-enforced `app_runtime` role."""
-
 import sqlalchemy as sa
 from sqlalchemy.exc import DBAPIError
 

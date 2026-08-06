@@ -1,8 +1,3 @@
-"""`RateCounterStorePort` (design.md §19, tasks.md task 5.3): the atomic
-fixed-window counter behind `rate_counters` -- UPSERT by
-`(dimension, subject, window_start)`. `tenant_id` is nullable (the
-pre-login IP-based auth limit has no tenant yet, design.md §4.4)."""
-
 from datetime import datetime
 from typing import Protocol
 

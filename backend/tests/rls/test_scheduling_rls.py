@@ -1,6 +1,3 @@
-"""Task 2.9: RLS isolation for availability/appointments (design.md §4.2's
-worked example, migration 613f9ea3526f)."""
-
 from datetime import datetime, timedelta, timezone
 
 import sqlalchemy as sa
@@ -48,11 +45,6 @@ async def test_availability_cross_site_returns_zero_rows(rls_conn) -> None:
 
 
 async def test_availability_professional_cannot_write_another_professionals_slot(rls_conn) -> None:
-    """Fixed in review: `availability_staff` previously had no
-    `professional_id` check, so any professional/reception/admin at a site
-    could write ANY professional's slots at that site.
-    `availability_professional` now mirrors `appointments_professional`'s
-    shape -- a professional may only manage their own availability."""
     tenant_id = await seed_tenant(rls_conn)
     site_id = await seed_site(rls_conn, tenant_id)
     professional_a = await seed_professional(rls_conn, tenant_id, site_id, name="A")
@@ -72,10 +64,6 @@ async def test_availability_professional_cannot_write_another_professionals_slot
 
 
 async def test_availability_reception_can_write_any_professionals_slot_at_site(rls_conn) -> None:
-    """Guards the fix above against over-correcting: splitting
-    `availability_staff` into `availability_reception`/
-    `availability_professional` must not lock reception/admin out of the
-    site-wide access they had before."""
     tenant_id = await seed_tenant(rls_conn)
     site_id = await seed_site(rls_conn, tenant_id)
     professional_id = await seed_professional(rls_conn, tenant_id, site_id)

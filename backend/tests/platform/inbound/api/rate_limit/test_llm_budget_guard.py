@@ -1,11 +1,3 @@
-"""Task 5.3b: `LlmBudgetGuard` -- design.md §19's LLM daily budget cap
-backstop. `check()` reads (without mutating) the tenant's `llm_tokens`
-counter for TODAY's window and raises+audits once `consumed >= budget`
-(`llm.budget_exceeded`, per design.md's exact pseudocode). `record_usage()`
-is the separate UPSERT-by-tokens-used step run at the end of a turn. Fake
-counter store + fake audit sink only -- the real UPSERT is proven by
-`test_postgres_rate_counter_store.py`."""
-
 from datetime import datetime, timezone
 
 import pytest
@@ -56,10 +48,7 @@ class _FakeAuditLog:
 
 
 class _FailingAuditLog:
-    """CRITICAL fix #3 (fresh-review pass, kureha-mvp PR 6): an
-    `AuditLogPort` fake whose `record()` always raises, used to prove a
-    failed audit write can never mask `LlmBudgetExceededError` -- callers
-    that specifically catch it must still see it raised."""
+    """`AuditLogPort` fake whose `record` always raises."""
 
     async def record(self, entry: AuditEntry) -> str:
         raise RuntimeError("audit backend unavailable")
@@ -87,10 +76,6 @@ async def test_check_passes_when_under_budget() -> None:
 
 
 async def test_check_uses_peek_and_never_calls_increment() -> None:
-    """The old implementation called `increment(..., by=0, ...)` as a
-    fake-read, which the atomic UPSERT still creates a row for even though
-    `by=0` never mutates an existing one -- a genuine side effect on a
-    "read" path. `check()` must now call `peek()` exclusively."""
     store = _FakeCounterStore()
     audit_sink: list[AuditEntry] = []
     guard = _guard(store, now=_NOW, audit_sink=audit_sink)
@@ -136,9 +121,6 @@ async def test_check_treats_a_tenant_with_no_counter_row_yet_as_zero_consumed() 
 
 
 async def test_check_raises_budget_exceeded_even_when_the_audit_write_fails() -> None:
-    """CRITICAL fix #3 (fresh-review pass): `record_audit.record()` raising
-    must never prevent `LlmBudgetExceededError` from being raised -- the
-    budget-exceeded decision always wins over a failed audit write."""
     store = _FakeCounterStore(initial={("llm_tokens", "t1", _TODAY_WINDOW): 1000})
     guard = LlmBudgetGuard(store, clock=_FixedClock(_NOW), record_audit=_FailingAuditLog())
 

@@ -1,8 +1,3 @@
-"""`DEFAULT_ALGORITHM` -- the single source of truth for the HS256 algorithm
-constant, deduplicated out of `jwt_access_token_issuer.py`/
-`jwt_access_token_verifier.py` (both previously declared their own private
-`_ALGORITHM = "HS256"`)."""
-
 from app.modules.identity.adapters.outbound.tokens.jwt_constants import DEFAULT_ALGORITHM
 from app.modules.identity.adapters.outbound.tokens.jwt_access_token_issuer import JwtAccessTokenIssuer
 from app.modules.identity.adapters.outbound.tokens.jwt_access_token_verifier import JwtAccessTokenVerifier
@@ -13,8 +8,6 @@ def test_default_algorithm_is_hs256() -> None:
 
 
 def test_issuer_and_verifier_share_the_same_default_algorithm_source(monkeypatch) -> None:
-    """Both classes' `algorithm` default must resolve to the SAME constant
-    object, not two independently-declared `"HS256"` literals."""
     import app.modules.identity.adapters.outbound.tokens.jwt_access_token_issuer as issuer_mod
     import app.modules.identity.adapters.outbound.tokens.jwt_access_token_verifier as verifier_mod
 

@@ -1,8 +1,3 @@
-"""Task 8.1: `Shift` domain (design.md §4.4/§6's `shifts` table shape). Pure
-value object -- the actual anti-overlap write (`EXCLUDE USING gist`, design.md
-§4.4) lives at the Postgres adapter/schema layer; this class only carries the
-shape, mirroring `AvailabilitySlot`/`Appointment`."""
-
 from datetime import datetime, timezone
 
 from app.modules.staff.domain.shift import Shift

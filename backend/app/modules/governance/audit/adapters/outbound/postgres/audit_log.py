@@ -1,15 +1,3 @@
-"""`PostgresAuditLog`: `AuditLogPort` adapter over `audit_logs` (design.md
-§4.3). `seq`/`prev_hash`/`row_hash` are left to the DB's hash-chain trigger
-(`audit_hash_chain()`) -- this adapter never computes or sets them.
-
-Same connection-ownership contract as every other Phase 3 postgres adapter
-(see `consent_registry.py`'s docstring): takes an already-open
-`AsyncConnection` from `app.db.runtime_engine` (the RLS-enforced
-`app_runtime` role) with the request's GUCs already set, and writes within
-the caller's existing transaction -- audit is only correct when it commits
-atomically with the action it records (design.md §4.3).
-"""
-
 import json
 
 from sqlalchemy import text

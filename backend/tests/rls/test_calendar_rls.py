@@ -1,6 +1,3 @@
-"""Task 2.9: RLS isolation for calendar_credentials/calendar_sync (migration
-613f9ea3526f)."""
-
 from datetime import datetime, timedelta, timezone
 
 import sqlalchemy as sa

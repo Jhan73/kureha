@@ -1,7 +1,3 @@
-"""Task 8.2: `RegisterStaff` use case -- `authorize(ctx, action)` first
-(design.md §5.3), then create the staff member and audit. Fakes only, no
-DB."""
-
 from datetime import datetime, timezone
 
 import pytest

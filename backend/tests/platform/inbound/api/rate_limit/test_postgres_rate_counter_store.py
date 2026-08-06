@@ -1,13 +1,3 @@
-"""Task 5.3: `PostgresRateCounterStore` -- `RateCounterStorePort` adapter
-over `rate_counters` (design.md §19), the atomic UPSERT-by-window pattern
-already proven in `tests/schema/test_sessions_and_rate_limiting.py`
-(`test_rate_counter_upsert_is_atomic_on_dimension_subject_window`).
-
-`rate_counters` has NO RLS (design.md §4.4: "vive fuera de las policies de
-dato de paciente... no la lee el dominio de negocio") -- uses `db_conn`
-(elevated), matching every other adapter that documents an elevated-
-connection exception, not `rls_conn`."""
-
 from datetime import datetime, timezone
 
 import sqlalchemy as sa
@@ -32,8 +22,6 @@ async def test_repeated_increments_in_the_same_window_accumulate(db_conn) -> Non
 
 
 async def test_increment_by_an_arbitrary_amount_for_the_llm_tokens_dimension(db_conn, tenant_id) -> None:
-    """design.md §19: LLM budget usage is UPSERTed by `tokens_used`, not by
-    1 per call."""
     store = PostgresRateCounterStore(db_conn)
     await store.increment(
         dimension="llm_tokens", subject=tenant_id, window_start=_WINDOW, by=450, tenant_id=tenant_id

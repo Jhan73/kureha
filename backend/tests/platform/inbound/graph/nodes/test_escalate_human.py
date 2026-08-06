@@ -1,6 +1,3 @@
-"""Task 11.5: `escalate_human` node -- audits `AuditAction.SCOPE_ESCALATE`,
-sets a curated escalation response, best-effort reason inference."""
-
 import pytest
 
 from app.modules.governance.audit.domain.audit_entry import AuditAction

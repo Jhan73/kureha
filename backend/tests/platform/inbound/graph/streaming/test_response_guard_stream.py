@@ -1,20 +1,3 @@
-"""`guard_sentence_units` (design.md §8.7, tasks.md task 12.4): classifies
-each sentence-boundary unit via `ClinicalScopePolicy.classify_outbound`
-**overlapped with buffering/production of the NEXT unit** -- design.md's own
-wording: "cada unidad... pasa response_guard de forma asincrona mientras el
-buffer de la oracion siguiente se sigue generando; solo se emite... cuando el
-clasificador aprueba la unidad anterior". Concretely: classification for
-unit N is scheduled as a background task the moment unit N is produced, and
-only AWAITED (then yielded) once unit N+1 has started being pulled from the
-upstream iterator -- so the classifier's latency overlaps with whatever
-produces the next unit, instead of serializing `await classify -> await
-classify -> ...`.
-
-A unit that classifies as anything other than `SAFE` stops the stream
-entirely (`ResponseGuardStreamRefusal`) -- spec `clinical-safety`, "Output is
-checked even if input filtering is evaded": no unit after a blocked one is
-ever yielded."""
-
 import pytest
 from langchain_core.messages import AIMessage
 from langchain_core.outputs import ChatGeneration, LLMResult
@@ -76,10 +59,6 @@ async def test_all_safe_units_are_yielded_in_order() -> None:
 
 
 async def test_classification_of_unit_n_is_scheduled_before_unit_n_plus_1_is_pulled() -> None:
-    """The overlap property, observed indirectly: by the time unit 2 has
-    been PULLED from the upstream iterator, unit 1 must already have been
-    submitted for classification -- proving classification is not serialized
-    strictly AFTER each unit is fully consumed."""
     units = _RecordingUnits(["one.", "two.", "three."])
     policy = _RecordingScopePolicy()
 
@@ -149,11 +128,6 @@ class _UsageRecordingScopePolicy:
 
 
 async def test_guard_sentence_units_forwards_the_shared_usage_handler_as_a_callback_on_every_classify_call() -> None:
-    """Issue 1 (budget-accounting bypass): each sentence-boundary unit's
-    `classify_outbound` call spends real tokens outside `graph.astream()`'s
-    own callback scope -- `guard_sentence_units` must forward the SAME
-    `TokenUsageCallbackHandler` the caller shares with the graph so those
-    tokens land in the ONE running total, instead of vanishing."""
     units = _RecordingUnits(["Hola.", " Como estas?"])
     policy = _UsageRecordingScopePolicy(tokens_per_call=10)
     handler = TokenUsageCallbackHandler()
@@ -169,9 +143,6 @@ async def test_guard_sentence_units_forwards_the_shared_usage_handler_as_a_callb
 
 
 async def test_guard_sentence_units_never_passes_callbacks_when_no_usage_handler_is_given() -> None:
-    """Backward compatibility: callers with no shared usage handler (none
-    exist today, but the parameter is optional) must not force every
-    `ClinicalScopePolicy` implementation to accept a `callbacks` kwarg."""
     units = _RecordingUnits(["Hola."])
     policy = _UsageRecordingScopePolicy(tokens_per_call=10)
 
@@ -182,12 +153,6 @@ async def test_guard_sentence_units_never_passes_callbacks_when_no_usage_handler
 
 
 async def test_guard_sentence_units_accumulates_tokens_spent_before_a_mid_stream_refusal() -> None:
-    """Issue 1's second half, at this module's own boundary: the unit that
-    ultimately blocks the stream still spent real classification tokens
-    before it was found unsafe -- those must be included in
-    `usage_handler.total_tokens` by the time `ResponseGuardStreamRefusal`
-    is raised, so the caller's `finally` block has the true partial total
-    to record."""
     units = _RecordingUnits(["safe.", "unsafe.", "never reached."])
     policy = _UsageRecordingScopePolicy(tokens_per_call=10, unsafe_unit="unsafe.")
     handler = TokenUsageCallbackHandler()

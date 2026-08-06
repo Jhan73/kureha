@@ -1,11 +1,3 @@
-"""`GetTenant` use case (design.md §4.1/§3.1, tasks.md task 6.1): the tenancy
-lookup other modules consume -- takes a bare `tenant_id` (not a
-`TenantContext`), because resolving the tenant is often a precondition to
-having one in the first place (e.g. `Login`'s pre-auth flow needs to confirm
-the tenant exists and is active before minting anything). No `authorize()`
-gate: reading your own tenant's basic record is not an RBAC-gated action --
-it is what makes the rest of authorization possible."""
-
 from app.modules.tenancy.application.ports.driven.tenant_repository import TenantRepositoryPort
 from app.modules.tenancy.domain.errors import TenantNotFoundError, TenantSuspendedError
 from app.modules.tenancy.domain.tenant import Tenant

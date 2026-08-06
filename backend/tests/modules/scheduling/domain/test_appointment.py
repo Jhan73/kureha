@@ -1,6 +1,3 @@
-"""Task 7.1: `Appointment` domain (design.md §4.1's `appointments` table
-shape). Pure value object -- state-transition invariants only, no IO."""
-
 from datetime import datetime, timezone
 
 import pytest

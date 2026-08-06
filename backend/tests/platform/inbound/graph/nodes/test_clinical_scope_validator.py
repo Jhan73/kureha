@@ -1,6 +1,3 @@
-"""Task 11.2: `clinical_scope_validator` node, INBOUND mode -- delegates to
-`ClinicalScopePolicy.classify_inbound` and sets `state.scope_ok`."""
-
 import pytest
 
 from app.modules.governance.scope.domain.scope_policy import InboundScopeCategory, InboundScopeResult

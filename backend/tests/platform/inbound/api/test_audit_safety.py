@@ -1,9 +1,3 @@
-"""CRITICAL fixes #1/#3 (fresh-review pass, kureha-mvp PR 6):
-`record_audit_best_effort` -- the shared helper `AccessControlMiddleware`,
-`AuthRateLimitMiddleware`, and `LlmBudgetGuard` all use to write an audit
-entry without letting a failure in `AuditLogPort.record()` propagate and
-override the security/rate-limit/budget decision already made."""
-
 import logging
 
 from app.modules.governance.audit.domain.audit_entry import AuditAction, AuditActorType, AuditEntry

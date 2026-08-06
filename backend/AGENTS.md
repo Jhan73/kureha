@@ -33,4 +33,5 @@ Before adding a new dependency between modules, check `openspec/changes/kureha-m
 ### Conventions
 
 * Code, identifiers, comments, docstrings, and error messages: **English**. SDD documentation (`openspec/`) stays in Spanish — don't mix the two.
-* Follow the folder layout in `design.md` §2.5 exactly (`app/shared_kernel/`, `app/modules/<name>/{domain,application,adapters}/`, `app/platform/{inbound,outbound}/`) — don't invent new top-level folders without updating design.md first.
+* Follow the folder layout in `openspec/changes/kureha-mvp/design.md` §2.5 exactly (`app/shared_kernel/`, `app/modules/<name>/{domain,application,adapters}/`, `app/platform/{inbound,outbound}/`) — don't invent new top-level folders without updating that design doc first.
+* Comments/docstrings: minimal. Never cite `tasks.md`, specs, `design.md`, ADRs, or PR/work-unit history in code. Docstrings only for non-obvious params, agent-relevant constraints, or behavior the name does not already say — no narrative essays.

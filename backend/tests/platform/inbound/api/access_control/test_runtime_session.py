@@ -1,14 +1,3 @@
-"""Task 5.1: `EngineRuntimeSession` -- production `RuntimeSessionPort` impl.
-Opens a connection from `app.db.runtime_engine` (the RLS-enforced
-`app_runtime` role), begins a transaction, and projects `SET LOCAL app.*`
-via `set_session_context` -- the real wiring `AccessControlMiddleware`'s
-`runtime_session` dependency needs (design.md §4.2).
-
-Uses its own `create_engine(settings.runtime_database_url, poolclass=NullPool)`
-per test, same reasoning as `conftest.py`'s `rls_conn` fixture (a fresh
-event loop per test function cannot reuse a pooled engine created against a
-different loop)."""
-
 import sqlalchemy as sa
 from sqlalchemy.pool import NullPool
 

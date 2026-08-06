@@ -1,16 +1,3 @@
-"""`ConfirmAccountLink` use case (design.md §17.3, tasks.md task 4.6, spec
-`user-authentication` -> "Email Verification for Account Linking"): links a
-federated (Google) subject to an existing password-based `users` row.
-
-**Caller contract:** this use case performs the link unconditionally once
-called -- it does NOT itself re-verify the user's identity/consent to link.
-The confirmation step (spec: "the system MUST require explicit confirmation
-before linking") is a UX/endpoint concern (e.g. re-entering the existing
-account's password, or clicking a confirmation link) that belongs to a
-future Phase 10 endpoint, not this use case. `Login.with_google` is what
-detects the "needs confirmation" state and returns `AccountLinkRequired`
-(never auto-calling this) -- see that method's docstring."""
-
 from datetime import timedelta
 
 from app.modules.identity.application.ports.driven.secret_generator import SecretGeneratorPort

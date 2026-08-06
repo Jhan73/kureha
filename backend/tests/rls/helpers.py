@@ -1,47 +1,12 @@
-"""RLS-test-only helpers (design.md §4.2).
-
-`set_app_context` projects the same session GUCs the FastAPI middleware will
-set in Phase 5 (`SET LOCAL app.*`), scoped to the current transaction so it
-never leaks across tests (matches `rls_conn`'s per-test rollback in
-conftest.py).
-
-Seed helpers all take a single `rls_conn` (authenticated as `app_runtime`)
-and set whatever `app.*` context is needed to satisfy the write-side policy
-for the row being created (e.g. `role='admin'` for `sites`/`professionals`,
-`role='reception'` for `patients`/`availability`) -- this is deliberate: it
-exercises the real INSERT-time `WITH CHECK` path instead of side-stepping it
-with a privileged connection, and it means a broken write policy fails the
-seed step itself (loudly), not the assertion after it. Re-calling
-`set_app_context` with a different role later in the SAME transaction is
-safe and expected -- RLS visibility is re-evaluated per query from the
-GUCs live at query time, not fixed at INSERT time (see module docstring in
-the RLS migration).
-"""
-
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from tests.schema.helpers import make_patient, make_professional, make_site, make_tenant, make_user
 
-# `SET`/`SET LOCAL` do not accept bind parameters over the extended query
-# protocol (Postgres requires a literal in the command itself) -- values here
-# are always server-generated UUIDs or a fixed role-name enum from test code,
-# never external input, so embedding them as string literals is safe.
+# SET LOCAL needs literals (no bind params); values are test-generated only.
 _GUC_COLUMNS = ("tenant_id", "site_id", "role", "user_id", "patient_id", "professional_id")
 
-# Design.md §4.2's `SET LOCAL app.*` block lists all six GUCs together, with
-# `patient_id`/`professional_id` commented as "<uuid-or-empty>" for
-# roles they don't apply to. A literal empty string cannot satisfy every
-# policy's `::uuid` cast (`''::uuid` raises `invalid input syntax`), and
-# Postgres's single-argument `current_setting('app.x')` raises
-# `unrecognized configuration parameter` if a GUC was NEVER set at all in the
-# session (which happens here because RLS evaluates every permissive policy
-# for a command, including ones for roles that don't apply, e.g.
-# `patients_self` while querying as `reception`). This sentinel -- the nil
-# UUID -- is what actually satisfies both constraints: always set, always a
-# valid `::uuid` cast, and guaranteed to never equal a real
-# `gen_random_uuid()`-generated id. Phase 5's access-control middleware needs
-# the same treatment when it starts emitting these GUCs for real.
+# Nil UUID for unset id GUCs: always set (current_setting), always valid ::uuid.
 _NIL_UUID = "00000000-0000-0000-0000-000000000000"
 
 
@@ -55,10 +20,7 @@ async def set_app_context(
     patient_id: str | None = None,
     professional_id: str | None = None,
 ) -> None:
-    """Sets all six `app.*` GUCs for the lifetime of the current transaction
-    on `conn` -- `tenant_id`/`role` (and `site_id`/`user_id`/`patient_id`/
-    `professional_id` when given) to their real value, everything else to
-    the nil-UUID sentinel (see module docstring)."""
+    """Set all six `app.*` GUCs for this transaction; unset ids use nil UUID."""
     values = {
         "tenant_id": tenant_id,
         "site_id": site_id,

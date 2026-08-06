@@ -1,42 +1,3 @@
-"""`AccessControlMiddleware` (design.md §4.2, tasks.md tasks 5.1/5.2): the
-FastAPI/Starlette middleware that turns an access JWT into a live-verified
-`TenantContext` and the `SET LOCAL app.*` GUCs every RLS policy depends on.
-
-Implements the exact three-step flow design.md §4.2's "Origen del contexto"
-paragraph spells out, run on EVERY request before any query executes:
-
-1. Validate the access token (signature + expiry) via `AccessTokenVerifierPort`.
-2. Resolve the token's `sub` to a live `users`/`staff_members` row (never
-   trust the token's own `tenant_id`/`site_id`/`role` claims for
-   authorization -- they are a hint only). A token with no mappable `users`
-   row, or one whose live status gate fails, is DENIED and AUDITED, never
-   silently defaulted to a role (spec `access-control` -> "Token without a
-   mapped identity is rejected"; spec `session-management` -> "Live
-   Enforcement of Active Status").
-3. Only once an active actor is resolved: emit the `SET LOCAL app.*` GUCs
-   (via the injected `runtime_session`) and hand the request downstream.
-
-**Dependency shape, deliberately callables/protocols, not concrete
-adapters:** `resolve_live_actor`/`record_audit` hide their own connection
-lifecycle (both run against the elevated, pre-context `app.db.engine`, same
-contract as `PostgresUserDirectory`/`Login._deny_unmapped` -- see those
-docstrings) so this class stays unit-testable with fakes, mirroring every
-other orchestration layer in this codebase (e.g. `Login`,
-`RefreshToken`). `runtime_session` hides the `app.db.runtime_engine`
-connection-open + `SET LOCAL` + commit/rollback lifecycle the SAME way.
-Composition root (task 10.2, not yet built) is where these get wired to the
-real Postgres engines.
-
-**Status codes, deliberately distinguished (design decision, not spelled
-out verbatim in design.md):** 401 when no session/identity could be
-established at all (missing/invalid/malformed token, unmapped identity) --
-"the caller was never authenticated as anyone real, retry with a fresh
-token"; 403 when identity WAS established but the live active-status gate
-denies it -- "we know who you are, access is forbidden". Both response
-bodies are the SAME generic `{"error": "unauthorized"}` regardless of cause
-(spec `access-control` -> "the caller receives a generic denial, not a
-not-found vs forbidden distinction")."""
-
 from typing import Awaitable, Callable, Protocol
 
 from sqlalchemy.ext.asyncio import AsyncConnection
@@ -59,11 +20,7 @@ _DENIED_BODY = {"error": "unauthorized"}
 
 
 class RuntimeSessionPort(Protocol):
-    """Opens/closes the request-scoped `app.db.runtime_engine` connection
-    with `SET LOCAL app.*` GUCs already projected (design.md §4.2). `begin`
-    is only ever called for an active `LiveActor` (never for a denied
-    request) -- `end` always runs exactly once per `begin`, in a `finally`,
-    with `commit=False` on any 5xx response or unhandled exception."""
+    """Request-scoped connection with SET LOCAL app.* GUCs. end() once per begin()."""
 
     async def begin(self, actor: LiveActor) -> AsyncConnection: ...
 
@@ -98,26 +55,10 @@ class AccessControlMiddleware(BaseHTTPMiddleware):
 
         claims = self._token_verifier.verify(token)
         if claims is None:
-            # Bad signature, expired, malformed -- no reliable tenant_id to
-            # audit against, and no spec scenario mandates one for this
-            # branch (only "missing claims"/"unmapped identity" do).
+            # Bad/expired token — no reliable tenant_id to audit against.
             return self._deny(401)
 
-        # This branch lumps together two distinct cases: a genuinely
-        # malformed/incomplete token, AND a token shaped like PR 5's
-        # documented anonymous/system `TenantContext` (`actor_id=None` ->
-        # no `sub` claim at all, see `jwt_access_token_issuer.py`'s
-        # `if ctx.actor_id is not None: claims["sub"] = ctx.actor_id`).
-        # Anonymous/system tokens are also DENIED here -- not because a spec
-        # says so, but because none of `design.md`, `specs/
-        # patient-self-service-portal`, or `specs/embedded-patient-chat`
-        # defines an anonymous-actor flow through THIS middleware yet.
-        # If/when a future phase adds one (e.g. embedded patient chat,
-        # where a visitor may need to act before/without a mapped
-        # `users` row), this branch will need to stop conflating
-        # "anonymous" with "malformed" and route anonymous tokens to their
-        # own handling instead of unconditionally auditing+denying as
-        # `AUTH_UNMAPPED_IDENTITY`.
+        # Missing claims (including anonymous/system tokens with no sub) → deny + audit.
         if not claims.sub or not claims.tenant_id or not claims.site_id or not claims.role:
             await self._audit_unmapped(claims, reason="access token is missing required claims")
             return self._deny(401)
@@ -151,20 +92,9 @@ class AccessControlMiddleware(BaseHTTPMiddleware):
             await self._runtime_session.end(conn, commit=commit)
 
     async def _audit_unmapped(self, claims: AccessTokenClaims, *, reason: str) -> None:
-        # CRITICAL fix #3 (kureha-mvp PR 6 verify-report, obs #414): a token
-        # whose `tenant_id` claim is missing entirely -- only reachable via a
-        # forged/malformed token, since Kureha's own issuer always includes
-        # it -- has no real tenant to attach the (NOT NULL
-        # `audit_logs.tenant_id`) audit row to. Falls back to the
-        # well-known `SYSTEM_TENANT_ID` sentinel (see `system_tenant.py`)
-        # instead of silently no-op'ing, so the access-control spec's
-        # "Missing session claims... rejection MUST be recorded" is met
-        # even in this edge case.
+        # Missing tenant_id claim → SYSTEM_TENANT_ID so the deny is still audited.
         tenant_id = claims.tenant_id or SYSTEM_TENANT_ID
-        # Fresh-review CRITICAL fix #1: `record_audit_best_effort` swallows
-        # any failure from the write itself (e.g. the FK violation
-        # `SYSTEM_TENANT_ID` triggers against a real Postgres adapter) so
-        # it can never turn this DENY into an unhandled 500.
+        # Best-effort: audit failure must not turn this deny into a 500.
         await record_audit_best_effort(
             self._record_audit,
             AuditEntry(
@@ -178,9 +108,7 @@ class AccessControlMiddleware(BaseHTTPMiddleware):
         )
 
     async def _audit_inactive(self, actor: LiveActor) -> None:
-        # Fresh-review CRITICAL fix #1: same guarantee as `_audit_unmapped`
-        # above -- a failed audit write must never turn this DENY into an
-        # unhandled 500.
+        # Best-effort: audit failure must not turn this deny into a 500.
         await record_audit_best_effort(
             self._record_audit,
             AuditEntry(

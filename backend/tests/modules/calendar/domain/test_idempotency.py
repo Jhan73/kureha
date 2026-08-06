@@ -1,8 +1,3 @@
-"""Task 9.3/ADR-18 (design.md §7.6): `derive_idempotency_key` -- a deterministic
-Google Calendar event id derived purely from `appointment_id`, so retries
-compute the exact same key without reading prior state. Must satisfy
-Google's event-id charset (`^[a-v0-9]{5,1024}$`)."""
-
 import base64
 import re
 import uuid

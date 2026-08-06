@@ -1,10 +1,3 @@
-"""Task 9.4: `PostgresCalendarCredentialRepository` -- `CalendarCredentialRepositoryPort`
-adapter over `calendar_credentials` (design.md §4.4/§7.3/§7.4, migration
-00d985a7bfa5). Uses `rls_conn` (the `app_runtime`/RLS-enforced connection)
-scoped as `role='patient'` -- `calendar_credentials_self` is the ONLY policy
-on this table (migration 613f9ea3526f), see the port's own module docstring
-for why."""
-
 import pytest
 
 from tests.rls.helpers import seed_patient, seed_site, seed_tenant, set_app_context
@@ -91,13 +84,6 @@ async def test_reconnecting_after_revoke_clears_revoked_at(rls_conn) -> None:
 
 
 async def test_revoke_also_erases_the_encrypted_token_columns(rls_conn) -> None:
-    """Task 10.4 (kureha-mvp PR9 verify finding): design.md §7.3 -- "En
-    rollback/desactivacion: revoked_at + borrado del token cifrado" -- and
-    the port's own docstring -- "Sets revoked_at and clears the encrypted
-    token" -- both require `revoke()` to erase the ciphertext, not just flip
-    `revoked_at`. Before this fix, `revoke()` only set `revoked_at`, leaving
-    `encrypted_refresh_token`/`nonce`/`wrapped_dek` fully intact and
-    recoverable in the same row."""
     tenant_id, patient_id = await _seed_patient(rls_conn)
     await set_app_context(rls_conn, tenant_id=tenant_id, role="patient", patient_id=patient_id)
     repository = PostgresCalendarCredentialRepository(rls_conn)

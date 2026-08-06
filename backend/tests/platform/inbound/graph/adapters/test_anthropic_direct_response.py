@@ -1,7 +1,3 @@
-"""tasks.md task 12.5 (PR 12 batch 2): `AnthropicDirectResponse`, the real
-`DirectResponsePort` adapter `direct_respond` consumes (design.md §8.10/
-§8.11.1/§8.11.3 -- Tony's identity/system prompt). Fast tier."""
-
 from app.platform.inbound.graph.adapters.anthropic_direct_response import AnthropicDirectResponse
 from app.shared_kernel.tenant_context import TenantContext
 
@@ -45,9 +41,6 @@ async def test_respond_returns_the_models_generated_text() -> None:
 
 
 async def test_capability_query_sends_only_the_callers_allowed_actions() -> None:
-    """design.md §8.11.1: "Tony nunca menciona acciones que el usuario no
-    tiene permiso de ejecutar" -- the prompt must carry ONLY the caller's own
-    `allowed_actions`, never the full action catalog."""
     llm = _FakeChatModel(_TextResult("Puedo ayudarte a agendar una cita."))
     adapter = AnthropicDirectResponse(llm)
 
@@ -86,11 +79,6 @@ async def test_message_reaches_the_model() -> None:
 
 
 async def test_respond_falls_back_to_a_canned_reply_on_an_llm_error() -> None:
-    """Unlike the planners (no failure-routing edge exists), `direct_respond`
-    is a purely conversational path with no side effect beyond a chat
-    reply -- a safe canned fallback here is a reasonable, deliberate
-    degrade-gracefully choice, matching `respond.py`'s own precedent of
-    hardcoded Spanish fallback templates (`_GENERIC_FALLBACK_TEXT`)."""
     llm = _FakeChatModel(RuntimeError("boom"))
     adapter = AnthropicDirectResponse(llm)
 

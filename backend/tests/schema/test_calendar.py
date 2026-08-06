@@ -1,13 +1,3 @@
-"""Task 2.7: calendar_credentials, calendar_sync (design.md §4.4, §7).
-
-`calendar_credentials` is tenant-wide identity like `patients` (one Google
-connection per patient, not per site). `calendar_sync` carries the
-deterministic `idempotency_key` (ADR-18, §7.6): retries of `events.insert`
-reuse the same key, so `UNIQUE(tenant_id, idempotency_key)` is the
-constraint that actually guarantees "exactly one `google_event_id` per
-appointment after any number of retries".
-"""
-
 from datetime import datetime, timedelta, timezone
 
 import sqlalchemy as sa

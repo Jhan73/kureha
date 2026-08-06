@@ -1,10 +1,3 @@
-"""`JwtAccessTokenIssuer`: production `AccessTokenIssuerPort` impl (design.md
-§17.4/ADR-15). HS256-signed, stateless -- never persisted. Claims:
-`sub` (actor_id, JWT-standard claim name for "subject" -- reused here for
-`users.id`, distinct from `AuthnResult.subject`, which is the IdP's own
-subject and never appears in this token), `tenant_id`, `site_id`, `role`,
-`iat`, `exp`."""
-
 from datetime import timedelta
 
 import jwt

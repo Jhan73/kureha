@@ -1,13 +1,3 @@
-"""Task 4.5: `Logout` use case -- revokes the caller's own session
-(design.md §17.4, spec `session-management` -> "User logs out"). Fake ports
-only, no DB.
-
-Takes a raw `refresh_token: str` (like `RefreshToken`), NOT a `session_id`
--- nothing in this module ever hands a client a `user_sessions.id` to send
-back (fix, confirmed review finding): the client only ever holds the opaque
-refresh token string, so `Logout` hashes it and looks the session up via
-`SessionStorePort.find_by_hash`, mirroring `RefreshToken.execute` exactly."""
-
 from datetime import datetime, timedelta, timezone
 
 import pytest

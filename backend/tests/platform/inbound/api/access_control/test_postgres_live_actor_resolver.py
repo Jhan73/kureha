@@ -1,18 +1,3 @@
-"""Task 5.1/5.2: `PostgresLiveActorResolver` -- `LiveActorResolverPort`
-adapter over `users` LEFT JOIN `staff_members` (design.md §4.2).
-
-**Elevated-connection contract, same as `PostgresUserDirectory`** (see that
-adapter's docstring): resolving `user_id` -> a live actor necessarily
-happens BEFORE any `app.*` GUC exists, so this is wired against
-`app.db.engine` (the `app_user` elevated role), never `app.db.runtime_engine`
--- uses `db_conn`, not `rls_conn`, same convention as
-`test_user_directory_postgres.py`.
-
-Resolves purely by `users.id` (the JWT's `sub` claim), NOT by a caller-
-supplied `tenant_id` -- design.md §4.2 is explicit that authorization claims
-are taken from the live `users` row, never trusted verbatim from the token,
-so there is deliberately no `tenant_id` parameter to (accidentally) trust."""
-
 from tests.rls.helpers import seed_staff_member
 from tests.schema.helpers import make_site, make_tenant, make_user
 
@@ -100,9 +85,6 @@ async def test_resolves_an_inactive_users_row(db_conn, tenant_id) -> None:
 
 
 async def test_resolves_by_id_alone_across_tenants(db_conn) -> None:
-    """No `tenant_id` parameter -- `users.id` is a global PK, so resolution
-    never needs (and must never require trusting) a caller-supplied
-    tenant."""
     tenant_a = await make_tenant(db_conn)
     tenant_b = await make_tenant(db_conn)
     site_a = await make_site(db_conn, tenant_a)

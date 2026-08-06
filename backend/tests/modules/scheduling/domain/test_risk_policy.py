@@ -1,10 +1,3 @@
-"""Task 7.1: `RiskPolicy` -- pure rules deriving `risk_level` (design.md
-§8.4's `hitl_approval` trigger inventory). No IO: the threshold value
-(`action_permissions.bulk_cancel_threshold`, design.md §4.4) and the
-requested/target professional ids are resolved by whoever calls this
-(the future `scheduling_agent` LangGraph node, tasks.md Phase 11) and
-passed in already-known."""
-
 from app.modules.scheduling.domain.risk_policy import RiskLevel, RiskPolicy
 
 

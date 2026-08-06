@@ -1,32 +1,3 @@
-"""`AnthropicIntentClassifier`: the real `IntentClassifierPort` adapter
-`triage` consumes (tasks.md task 12.2's adapter half, design.md §8.2/§8.10).
-Fast/small tier -- design.md §8.10: "Clasificacion de intent en 9
-categorias: latencia critica (primer nodo)". Constructor-injected
-`ChatAnthropic`, built ONLY via `platform/inbound/graph/adapters/llm.py`'s
-`build_chat_model("fast")` at the composition root -- never inline here.
-
-Lives flat in `graph/adapters/` (not a provider-named subfolder) --
-`IntentClassifierPort` is a graph-local seam (see that port's own module
-docstring: "no module outside the graph ever needs this port"), matching
-`adapters/unwired.py`'s existing flat-file convention for every OTHER
-graph-local seam's placeholder in this same package, rather than
-`governance/scope`'s cross-cutting-policy convention of a provider
-subfolder.
-
-**Structured output constrained to the EXACT 9 `KurehaState.intent` Literal
-values** -- an intent classifier that could return a typo'd or invented
-string would silently break every downstream `_route_by_intent`/
-`_route_from_triage` conditional edge in `build_graph.py` (this task's own
-explicit warning). `_IntentClassification.intent` is a `Literal` of those 9
-strings, so any OTHER value can only ever surface as a structured-output
-validation failure -- caught below, never silently accepted.
-
-**Fails closed to `"unknown"` on ANY error** (network failure, refusal,
-validation failure of a malformed response) -- `build_graph.py`'s own
-`_route_by_intent` already routes `"unknown"` to `escalate_human`, so a
-classification failure never silently reaches a specialist agent it has no
-real intent basis for."""
-
 from typing import Literal
 
 from langchain_core.messages import HumanMessage, SystemMessage

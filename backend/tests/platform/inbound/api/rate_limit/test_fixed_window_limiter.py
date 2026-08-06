@@ -1,9 +1,3 @@
-"""Task 5.3: `FixedWindowRateLimiter` -- orchestrates `RateCounterStorePort`
-+ `ClockPort` into a pass/fail decision (design.md §19's auth/token
-dimension: "sliding/fixed-window sobre `rate_counters`... Exceso ->
-denegacion temporal auditada"). Fake counter store only, no DB -- the real
-UPSERT semantics are proven by `test_postgres_rate_counter_store.py`."""
-
 from datetime import datetime, timezone
 
 from app.platform.inbound.api.rate_limit.fixed_window_limiter import FixedWindowRateLimiter

@@ -1,13 +1,3 @@
-"""tasks.md task 12.3: `AnthropicScopePolicy` -- the real, LLM-backed
-`ClinicalScopePolicy` adapter (design.md §8.7). No real network: a fake chat
-model duck-types the ONE surface this adapter actually calls
-(`llm.with_structured_output(schema).ainvoke(messages)`, `langchain-
-anthropic`'s own documented structured-output shape, `inspect`-verified in
-`app/platform/inbound/graph/adapters/llm.py`'s own docstring) -- mirrors
-`test_google_calendar_adapter.py`'s `httpx.MockTransport` precedent of
-test-doubling an external-HTTP-calling adapter's transport, one level up
-(LangChain's `Runnable` boundary instead of raw HTTP)."""
-
 import pytest
 
 from app.modules.governance.scope.adapters.outbound.anthropic.anthropic_scope_policy import AnthropicScopePolicy
@@ -78,9 +68,6 @@ async def test_classify_inbound_maps_every_refusal_category_and_flags_escalation
 
 
 async def test_classify_inbound_embeds_the_tenant_id_as_a_reference_point() -> None:
-    """`ClinicalScopePolicy`'s own docstring: a classifier given only the raw
-    text has no reference point to judge tenant-scope-leakage framing --
-    this adapter must give it one."""
     llm = _FakeChatModel(_Classification("in_scope"))
     policy = AnthropicScopePolicy(llm)
 
@@ -92,10 +79,6 @@ async def test_classify_inbound_embeds_the_tenant_id_as_a_reference_point() -> N
 
 
 async def test_classify_inbound_fails_closed_on_an_llm_error() -> None:
-    """A malformed/refused response (any exception from the structured-output
-    call) must never silently resolve to `in_scope` -- fails closed to
-    `clinical_diagnosis`, design.md §8.7's own framing that every refusal
-    trigger "se rehusa igual que un pedido directo de diagnostico"."""
     llm = _FakeChatModel(ValueError("boom"))
     policy = AnthropicScopePolicy(llm)
 
@@ -106,11 +89,6 @@ async def test_classify_inbound_fails_closed_on_an_llm_error() -> None:
 
 
 async def test_classify_outbound_short_circuits_on_empty_text_without_calling_the_llm() -> None:
-    """`response_guard`'s own docstring: the operational persist_and_audit
-    path always classifies `state.get("response_text") or ""` -- an empty
-    string carries structurally zero clinical-content risk (no upstream node
-    on that path ever sets free LLM text), so this adapter treats it as
-    vacuously safe WITHOUT spending a network round trip on it."""
     llm = _FakeChatModel(_Classification("safe"))
     policy = AnthropicScopePolicy(llm)
 
@@ -150,13 +128,6 @@ async def test_classify_outbound_fails_closed_on_an_llm_error() -> None:
 
 
 async def test_classify_outbound_forwards_callbacks_into_the_ainvoke_config_when_given() -> None:
-    """Issue 1 (budget-accounting bypass, `response_guard_stream.py`'s own
-    docstring): `guard_sentence_units` forwards a shared
-    `TokenUsageCallbackHandler` here via `callbacks` -- this adapter must
-    pass it through to the underlying `ainvoke()` call's `config`, the same
-    LangChain mechanism `graph.astream()`'s own `config={"callbacks": [...]}`
-    already relies on, so the classification call's real token spend is
-    observable to that handler."""
     llm = _FakeChatModel(_Classification("safe"))
     policy = AnthropicScopePolicy(llm)
     sentinel_handler = object()
@@ -168,10 +139,6 @@ async def test_classify_outbound_forwards_callbacks_into_the_ainvoke_config_when
 
 
 async def test_classify_outbound_omits_config_when_no_callbacks_are_given() -> None:
-    """Backward compatibility: the non-streaming `response_guard` node never
-    passes `callbacks` -- must not start sending an empty/`None` `config`
-    that a fake/adapter with a stricter `ainvoke(self, messages)` signature
-    would reject."""
     llm = _FakeChatModel(_Classification("safe"))
     policy = AnthropicScopePolicy(llm)
 

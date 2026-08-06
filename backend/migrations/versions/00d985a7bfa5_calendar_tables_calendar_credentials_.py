@@ -1,28 +1,8 @@
-"""calendar tables calendar_credentials calendar_sync
+"""Add calendar_credentials and calendar_sync tables.
 
-Task 2.7 (openspec/changes/kureha-mvp/tasks.md, Phase 2). Schema per
-design.md §4.4/§7. `calendar_credentials` is tenant-wide identity, same
-rationale as `patients` (8fc0dc6f958d): one Google connection per patient
-regardless of site. `calendar_sync.idempotency_key` (ADR-18, §7.6) is the
-deterministic id derived from `appointment_id` that makes `events.insert`
-retries safe -- `UNIQUE(tenant_id, idempotency_key)` is what actually
-guarantees exactly one `google_event_id` per appointment.
-
-RLS is deferred to task 2.9, same convention as every other Phase 2 schema
-migration. Encryption itself (AES-256-GCM envelope, KEK in Secrets Manager)
-is application-layer (`CredentialVaultPort`/`AesGcmVault`, Phase 9) -- out of
-scope for this schema-only migration; `encrypted_refresh_token`/`nonce`/
-`wrapped_dek` are opaque `bytea` here.
-
-NOTE (tightening on top of design.md's literal SQL, flagged not silently
-applied -- same class of fix as every migration since 8fc0dc6f958d):
-`calendar_credentials.patient_id` and `calendar_sync.site_id`/
-`appointment_id` are composite FKs `(tenant_id, x_id) REFERENCES
-table(tenant_id, id)` instead of bare `REFERENCES table(id)`. `appointments`
-never got a `UNIQUE(tenant_id, id)` in 3505dc8ce3ad (nothing FK'd into it
-yet); `calendar_sync.appointment_id` is the first FK into `appointments`, so
-this migration adds that unique constraint here (same situation as
-`users`/7d88aa8f8a51).
+Tenant-wide credentials per patient; UNIQUE(tenant_id, idempotency_key) for
+sync retries. Adds UNIQUE(tenant_id, id) on appointments for composite FK.
+Token columns are opaque bytea (encryption is application-layer).
 
 Revision ID: 00d985a7bfa5
 Revises: d0e2489a94b8

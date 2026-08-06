@@ -1,7 +1,3 @@
-"""Task 6.1: `GetTenant` -- the tenancy lookup use case other modules'
-pre-auth flows (e.g. `Login`) and the platform layer consume to resolve +
-gate a `Tenant` by id. Pure orchestration against a fake port, no DB."""
-
 import pytest
 
 from app.modules.tenancy.application.use_cases.get_tenant import GetTenant

@@ -1,15 +1,3 @@
-"""`PostgresConsentRegistry`: `ConsentRegistryPort` adapter over
-`consent_policies`/`consents` (design.md §4.1/§11).
-
-Takes an already-open `AsyncConnection` rather than owning an engine --
-callers (composition root, tests) are responsible for handing it a
-connection from `app.db.runtime_engine` (the `app_runtime`, RLS-enforced
-role) with the request's `SET LOCAL app.*` GUCs already applied, same
-pattern every other Phase 3+ postgres adapter follows. Never construct this
-against `app.db.engine` (`app_user`, bypasses RLS) for a request-scoped
-query -- see `app/db.py`'s module docstring.
-"""
-
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 

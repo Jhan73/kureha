@@ -209,33 +209,15 @@ describe("ChatWidget", () => {
     });
     emit?.({ type: "done", audit_ref: "aud-1", calendar_sync_status: null, finish_reason: "stop" });
 
-    // The javascript: URI is the load-bearing assertion: it only gets stripped
-    // once react-markdown's output is actually passed through rehype-sanitize's
-    // href-protocol allowlist -- it is NOT stripped by react-markdown alone.
+    // javascript: stripped only by rehype-sanitize's protocol allowlist.
     const link = await screen.findByText("click here");
     expect(link.tagName).toBe("A");
-    // rehype-sanitize's default schema disallows the javascript: protocol on
-    // href, so the whole attribute is stripped rather than left neutered.
     expect(link.getAttribute("href")).toBeNull();
 
-    // Defense-in-depth: the raw <script> tag must never become a real DOM
-    // script element or execute, regardless of renderer.
     expect(document.querySelector("script")).toBeNull();
     expect((window as unknown as { __pwned?: boolean }).__pwned).toBeUndefined();
   });
 
-  // tasks.md 14.5: a confirmation prompt (turn N asks, turn N+1
-  // affirms/declines) is deliberately NOT a special UI mode -- design.md
-  // §8.5 states it "travels... with no protocol difference from a normal
-  // response" and spec `embedded-patient-chat`'s "Confirmation Required
-  // Before Any Mutating Action" scenarios never describe a distinct
-  // confirm/decline widget, only that the prompt is delivered in-stream and
-  // the next turn's plain-text reply resolves it. These are approval tests
-  // (strict-tdd.md's "Approval Testing" pattern): they capture and prove
-  // CURRENT behavior of the existing turn-N/turn-N+1 send path rather than
-  // drive new production code -- 14.3/14.4 already built the only mechanism
-  // this needs (an ordinary assistant turn, an ordinary user turn, the same
-  // streamChat() call). No implementation changes accompany this task.
   it("renders a confirmation prompt as an ordinary assistant turn, then the user's plain-text affirmation on the next turn through the exact same send path", async () => {
     let emitTurnN: ((event: ChatStreamEvent) => void) | undefined;
     vi.mocked(streamChat).mockImplementationOnce(async (_fetch, _params, onEvent) => {
@@ -256,8 +238,6 @@ describe("ChatWidget", () => {
       await screen.findByText("Voy a reservar cita con la Dra. X el martes a las 10:00. ¿Confirmas?"),
     ).toBeInTheDocument();
 
-    // No dedicated confirm/decline affordance exists -- the send form is the
-    // only way to respond, same as any other turn.
     expect(screen.queryByRole("button", { name: /confirm/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /decline/i })).toBeNull();
     expect(screen.getByRole("button", { name: /send/i })).not.toBeDisabled();
@@ -269,8 +249,6 @@ describe("ChatWidget", () => {
 
     sendMessage("Sí, confirmo");
 
-    // Same call shape as any other turn: same clientRandomUuid (thread
-    // continuity), a plain message string, no confirmation-specific field.
     await waitFor(() =>
       expect(streamChat).toHaveBeenNthCalledWith(
         2,
@@ -292,7 +270,6 @@ describe("ChatWidget", () => {
     expect(
       await screen.findByText("Listo, tu cita con la Dra. X quedó confirmada para el martes a las 10:00."),
     ).toBeInTheDocument();
-    // Turn N's original prompt is still visible, untouched by turn N+1.
     expect(
       screen.getByText("Voy a reservar cita con la Dra. X el martes a las 10:00. ¿Confirmas?"),
     ).toBeInTheDocument();

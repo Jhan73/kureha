@@ -1,11 +1,3 @@
-"""Task 5.1: `LiveActor` -- the access-control middleware's live-resolved
-snapshot of a `users` row JOIN `staff_members` (design.md §4.2 "Gate de
-estado activo vivo"). `is_active` is the exact predicate design.md spells
-out: "el actor se considera activo solo si AMBOS campos son 'active'" (a
-staff row exists only for staff members with an operational registry entry;
-a `patient` actor has no `staff_members` row at all, so `staff_status` is
-`None` and only `users.status` gates them)."""
-
 from app.platform.inbound.api.access_control.live_actor import LiveActor
 
 

@@ -1,13 +1,3 @@
-"""Task 10.2 (design.md §4.2, `SyncAppointmentToCalendar`'s module docstring,
-`CalendarCredentialRepositoryPort`'s module docstring): the mid-transaction
-`SET LOCAL app.role`/`app.patient_id`/`app.professional_id` re-scope that
-lets ONE logical flow satisfy two different, mutually-exclusive RLS role
-predicates on the SAME connection/transaction (patient-self-only
-`calendar_credentials_self` interleaved with staff-only `calendar_sync_staff`
-writes). Exercised against a real Postgres connection (`rls_conn`) --
-`current_setting` is what every real RLS policy actually reads, so this is
-the only trustworthy way to prove the re-scope takes effect."""
-
 import sqlalchemy as sa
 
 from app.platform.inbound.api.access_control.role_scope import scoped_as_patient, set_role_scope

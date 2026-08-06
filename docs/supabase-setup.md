@@ -82,11 +82,16 @@ curl -X PATCH "https://api.supabase.com/v1/projects/$PROJECT_REF/config/auth" \
 
 Any SMTP-compatible provider works (Resend, SendGrid, Mailgun, etc.). Pick one with a free tier generous enough for staff invites + password resets during dev/pilot.
 
-## 6. Redirect URLs for invite / password-reset emails — flagged gap
+## 6. Redirect URLs for invite / password-reset emails
 
-Dashboard → **Authentication → URL Configuration**: set **Site URL** and add the frontend's invite-completion and password-reset pages to **Redirect URLs**.
+Dashboard → **Authentication → URL Configuration**: add the frontend origin (`FRONTEND_BASE_URL`, see the `.env.local` reference below) to **Redirect URLs**, so GoTrue accepts the explicit `redirect_to` Kureha now sends (see below) instead of silently ignoring it and falling back to Site URL.
 
-**This is currently unconfigured in code, not silently working — read before shipping to staff.** `SupabaseAuthAdapter.invite_user`/`start_password_reset` (the code behind `/staff/register` and `/auth/password-reset/request`) call GoTrue's `/auth/v1/invite` and `/auth/v1/recover` with **no `redirect_to` parameter**. Per Supabase's own docs, when no `redirect_to` is set (or it isn't in the allowlist), the email link falls back to whatever **Site URL** is configured for the project — it will **not** automatically point at whatever frontend page is meant to catch the invite/recovery token. Until a future revision threads a real `redirect_to` through both calls, set **Site URL** to the frontend's login page as a safe fallback, and treat "the invite/reset email lands on the right frontend screen" as unverified.
+**Fixed in code, but the destinations are interim placeholders — read before shipping to staff.** `SupabaseAuthAdapter.invite_user`/`start_password_reset` now send an explicit `redirect_to` on both GoTrue calls, built from `Settings.frontend_base_url`:
+
+- Staff invite (`POST /staff/register`) → `{FRONTEND_BASE_URL}/staff/login` — the closest real, existing page today.
+- Password reset (`POST /auth/password-reset/request`) → bare `{FRONTEND_BASE_URL}` — this use case is never tenant/role-scoped, so there's no signal to pick `/login` vs `/staff/login` (see `RequestPasswordReset`'s own docstring).
+
+**Neither a dedicated "complete your invite" page nor a password-reset-confirm page exists on the frontend yet** — both redirects land on a page that can't actually consume the Supabase token in the URL. Building those pages (and pointing these two redirects at them) is a real, separate, still-open gap — flagged in `ProvisionStaffIdentity`'s and `RequestPasswordReset`'s own docstrings, not solved here.
 
 ## 7. Verify against a real project before relying on this in production
 
@@ -107,6 +112,7 @@ The free tier itself is generous enough for this project's scale (50,000 MAU, 2 
 SUPABASE_URL=https://<project-ref>.supabase.co
 SUPABASE_ANON_KEY=<anon/publishable key>
 SUPABASE_SERVICE_ROLE_KEY=<service_role/secret key>
+FRONTEND_BASE_URL=http://localhost:3000
 ```
 
-All three are read once at process start via `backend/app/config.py`'s `Settings` (pydantic-settings, `env_file=".env.local"`). No frontend env vars are needed — the frontend never talks to Supabase directly.
+All four are read once at process start via `backend/app/config.py`'s `Settings` (pydantic-settings, `env_file=".env.local"`). No frontend env vars are needed — the frontend never talks to Supabase directly. `FRONTEND_BASE_URL` is backend-only, used to build the `redirect_to` links in §6 above.

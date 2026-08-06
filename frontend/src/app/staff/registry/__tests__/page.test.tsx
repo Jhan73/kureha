@@ -63,8 +63,6 @@ describe("StaffRegistryPage", () => {
 
     const notice = await screen.findByRole("alert");
     expect(notice).toHaveTextContent(/not available yet/i);
-    // No fake CRUD form exists (no name/site/role inputs, no submit button) --
-    // this page is explicitly a documented gap, never invented behavior.
     expect(screen.queryByRole("form")).toBeNull();
     expect(screen.queryByRole("button", { name: /register|create|save/i })).toBeNull();
   });

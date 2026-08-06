@@ -1,8 +1,3 @@
-"""Task 9.4/9.5: `PostgresCalendarSyncRepository` -- `CalendarSyncRepositoryPort`
-adapter over `calendar_sync` (design.md §4.4/§7.2/§7.5, migration
-00d985a7bfa5). Uses `rls_conn` scoped as staff (`calendar_sync_staff` is the
-only policy on this table, migration 613f9ea3526f)."""
-
 from datetime import datetime, timedelta, timezone
 
 from tests.rls.helpers import (

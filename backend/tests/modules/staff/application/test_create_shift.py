@@ -1,7 +1,3 @@
-"""Task 8.2: `CreateShift` use case -- `authorize` first, confirm the staff
-member exists and is assignable (`StaffPolicy.is_assignable`), create the
-shift, and audit. Fakes only, no DB."""
-
 from datetime import datetime, timezone
 
 import pytest

@@ -1,13 +1,3 @@
-"""Task 2.8: user_sessions, rate_counters, tenants.llm_daily_budget_tokens
-(design.md §4.4, §17.4, §19).
-
-`user_sessions` holds hashed refresh tokens with a rotation chain
-(`rotated_from`) used to detect reuse of a revoked/rotated refresh (stolen
-token signal, §17.4). `rate_counters` is infra for the auth/token and LLM
-budget rate-limit dimensions (§19) -- `tenant_id` is nullable because the
-pre-login IP-based auth limit has no tenant yet.
-"""
-
 import sqlalchemy as sa
 from sqlalchemy.exc import IntegrityError
 
@@ -126,9 +116,6 @@ async def test_rate_counter_tenant_id_is_nullable_for_pre_login_ip_limit(db_conn
 
 
 async def test_rate_counter_cleanup_deletes_only_rows_older_than_24h(db_conn) -> None:
-    """Exercises the exact DELETE the cleanup job (task 2.11) runs, decoupled
-    from the scheduling mechanism (pg_cron/Lambda) -- proves the query logic
-    itself only removes rows past the 24h TTL."""
     await db_conn.execute(
         sa.text(
             "INSERT INTO rate_counters (dimension, subject, window_start, count) "

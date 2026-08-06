@@ -1,6 +1,3 @@
-"""Task 7.3: `RescheduleAppointment` use case -- `authorize` first, then
-release the old slot, reserve the new one, and audit. Fakes only, no DB."""
-
 from datetime import datetime, timezone
 
 import pytest
@@ -203,10 +200,6 @@ async def test_unavailable_new_slot_raises_slot_unavailable() -> None:
 
 
 async def test_staff_not_assignable_denies_before_any_mutation() -> None:
-    """Spec `staff-registry` -> "Deactivated staff cannot be scheduled":
-    checked against the NEW slot's professional (the target of the move),
-    BEFORE the old slot is released or the new one reserved (tasks.md task
-    8.4) -- neither repository must be touched on this deny."""
     availability = _FakeAvailabilityRepository(slots={"av-new": _new_slot()})
     scheduling = _FakeSchedulingRepository(existing=_existing_appointment())
     staff_status = _FakeStaffStatusPort(assignable=False)

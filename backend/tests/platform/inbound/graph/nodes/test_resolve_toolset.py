@@ -1,6 +1,3 @@
-"""Task 11.2: `resolve_toolset` node -- delegates to `ListAllowedActions`
-and stores the sorted result on `state.allowed_actions`."""
-
 import pytest
 
 from app.platform.inbound.graph.nodes.resolve_toolset import make_resolve_toolset_node
@@ -60,9 +57,6 @@ async def test_resolve_toolset_handles_an_empty_set() -> None:
 
 @pytest.mark.asyncio
 async def test_emits_an_ungated_status_event(monkeypatch) -> None:
-    """`action=None` -- this phase is administrative (resolving the
-    toolset itself), not tied to any one RBAC-gated action, so it is never
-    suppressed regardless of `allowed_actions`."""
     import app.platform.inbound.graph.nodes.resolve_toolset as module
 
     calls: list[dict] = []

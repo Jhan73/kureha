@@ -1,9 +1,3 @@
-"""`matches_any_prefix` -- the shared prefix-matching helper deduplicated
-out of `AccessControlMiddleware._is_exempt` and
-`AuthRateLimitMiddleware._is_protected` (both did `path == prefix or
-path.startswith(prefix)`, which is redundant: `startswith` already covers
-exact equality)."""
-
 from app.platform.inbound.api.path_matching import matches_any_prefix
 
 
@@ -24,8 +18,6 @@ def test_unrelated_path_does_not_match() -> None:
 
 
 def test_substring_prefix_matching_is_not_segment_aware() -> None:
-    """Documented gotcha: `/auth/login` also matches
-    `/auth/login-audit-export` -- callers must choose prefixes carefully."""
     assert matches_any_prefix("/auth/login-audit-export", frozenset({"/auth/login"})) is True
 
 

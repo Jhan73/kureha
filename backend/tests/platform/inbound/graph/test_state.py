@@ -1,11 +1,3 @@
-"""Task 11.1: `KurehaState` + its supporting value objects (design.md §8.1).
-
-Mostly a shape/smoke test -- `TypedDict` has no runtime behavior to unit
-test beyond "it constructs and keys round-trip". The one piece of real
-logic is `RequestContext.to_tenant_context()` (this batch's deliberate,
-flagged deviation from reusing `TenantContext` directly -- see state.py's
-module docstring)."""
-
 from app.modules.governance.rbac.domain.permission import ActionKey
 from app.platform.inbound.graph.state import (
     ActionOutcome,

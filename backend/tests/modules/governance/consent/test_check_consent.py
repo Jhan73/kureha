@@ -1,6 +1,3 @@
-"""Task 3.2: `CheckConsent` use case -- orchestrates `ConsentRegistryPort` +
-`ConsentPolicy`, no IO of its own (fake port, no DB)."""
-
 from datetime import datetime, timezone
 
 import pytest

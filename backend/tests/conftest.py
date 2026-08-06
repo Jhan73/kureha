@@ -1,12 +1,3 @@
-"""Shared fixtures for backend tests.
-
-Applies every Alembic migration against the local Postgres (started via
-`docker compose up -d postgres`, see docker-compose.yml at the repo root)
-once per test session, and proves upgrade()/downgrade() round-trip cleanly
-(backend/AGENTS.md: "Every migration must be reversible") before handing out
-a per-test transactional connection.
-"""
-
 from pathlib import Path
 from typing import AsyncIterator
 
@@ -25,9 +16,7 @@ ALEMBIC_INI = BACKEND_ROOT / "alembic.ini"
 
 
 def _sync_url() -> str:
-    # Resetting the schema and driving Alembic's `command` API must happen
-    # outside any running asyncio event loop (migrations/env.py owns its own
-    # async engine and calls asyncio.run() internally) -> use a sync driver.
+    # Alembic `command` + schema reset run sync (env.py calls asyncio.run).
     return settings.database_url.replace("+asyncpg", "+psycopg")
 
 
@@ -37,22 +26,12 @@ def _alembic_config() -> Config:
 
 @pytest.fixture(scope="session", autouse=True)
 def _migrated_schema() -> None:
-    """Reset `public` and apply all migrations once per test run.
-
-    Also exercises upgrade -> downgrade -> upgrade so a broken `downgrade()`
-    fails the whole test session instead of silently rotting.
-    """
+    """Reset schema; upgrade -> downgrade -> upgrade once per session."""
     reset_engine = sa.create_engine(_sync_url())
     with reset_engine.connect() as conn:
         conn.execute(sa.text("DROP SCHEMA IF EXISTS public CASCADE"))
         conn.execute(sa.text("CREATE SCHEMA public"))
-        # Recreating the schema drops any extension objects that lived in it
-        # (btree_gist/pgcrypto, normally installed once by
-        # infra/postgres/init/01_extensions.sql at container init time, not
-        # by a migration -- see that file's own comment on why). Re-create
-        # them here so a schema reset between test runs doesn't lose them;
-        # this is test-harness bookkeeping only, not part of the migration
-        # path itself.
+        # Schema drop removes extensions from init scripts; reinstall for tests.
         conn.execute(sa.text("CREATE EXTENSION IF NOT EXISTS btree_gist"))
         conn.execute(sa.text("CREATE EXTENSION IF NOT EXISTS pgcrypto"))
         conn.commit()
@@ -66,20 +45,9 @@ def _migrated_schema() -> None:
 
 @pytest.fixture
 async def db_conn() -> AsyncIterator[AsyncConnection]:
-    """One transactional connection per test, rolled back on teardown.
+    """Per-test transactional conn (own NullPool engine); roll back on teardown.
 
-    Uses its own engine (NullPool, no cross-test pooling) rather than the
-    shared `app.db.engine` singleton: pytest-asyncio gives each test
-    function its own event loop by default, and an asyncio connection pool
-    created against one loop cannot be reused from another (surfaces as
-    unrelated-looking `AttributeError`/`RuntimeError` from asyncio's
-    proactor internals on the second test, not a clean error) -- see
-    apply-progress notes for kureha-mvp PR 2.
-
-    Tests that need to assert a constraint violation (UNIQUE, CHECK,
-    EXCLUDE, or a trigger raising) must wrap the failing statement in
-    `async with db_conn.begin_nested():` so the outer transaction used for
-    isolation survives the error.
+    Constraint-violation checks must use `async with db_conn.begin_nested():`.
     """
     test_engine = create_engine(poolclass=NullPool)
     try:
@@ -95,8 +63,7 @@ async def db_conn() -> AsyncIterator[AsyncConnection]:
 
 @pytest.fixture
 async def tenant_id(db_conn: AsyncConnection) -> str:
-    """A fresh tenant for tests that only need one. Tests needing two (or
-    more) tenants, or a non-default name, call `make_tenant()` directly."""
+    """Single fresh tenant; use `make_tenant()` when you need more control."""
     from tests.schema.helpers import make_tenant
 
     return await make_tenant(db_conn)
@@ -104,24 +71,10 @@ async def tenant_id(db_conn: AsyncConnection) -> str:
 
 @pytest.fixture
 async def rls_conn() -> AsyncIterator[AsyncConnection]:
-    """One transactional connection per test, authenticated as `app_runtime`
-    -- a restricted, non-superuser, NOBYPASSRLS role (design.md §4.2) --
-    instead of `app_user` (the Postgres bootstrap superuser used by `db_conn`
-    above, which unconditionally bypasses RLS regardless of `ENABLE`/`FORCE
-    ROW LEVEL SECURITY`).
+    """Per-test conn as `app_runtime` (RLS enforced). Use for RLS assertions.
 
-    Any test asserting RLS isolation (cross-tenant/cross-site/cross-role
-    access returns zero rows, tasks.md task 2.9) MUST use this fixture, not
-    `db_conn` -- a test run against `db_conn` would pass whether or not the
-    policies are correct, since app_user bypasses them entirely. See
-    `tests/rls/test_app_runtime_role.py` for an explicit assertion that this
-    role is neither superuser nor BYPASSRLS, so a future regression (e.g.
-    someone repointing `runtime_database_url` at `app_user`) fails loudly.
-
-    Fixture rows (tenants/sites/patients/etc.) must still be inserted via
-    `db_conn` (or a `db_conn`-based helper) before switching to `rls_conn` to
-    read/write them under RLS -- `app_runtime` has no INSERT path around a
-    denying policy, same as any real request.
+    Seed fixture rows via `db_conn` first; `app_runtime` cannot insert around
+    denying policies.
     """
     test_engine = create_engine(settings.runtime_database_url, poolclass=NullPool)
     try:

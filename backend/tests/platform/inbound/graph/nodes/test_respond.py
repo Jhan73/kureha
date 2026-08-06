@@ -1,9 +1,3 @@
-"""Task 11.5: `respond` node -- passes through an already-set
-`response_text` (confirmation_gate/direct_respond/escalate_human/deny_action),
-otherwise composes one from `outcome`; generates up to 3 RBAC-safe
-suggestions only when context justifies it, truncated to 3, `None`
-otherwise."""
-
 import pytest
 
 from app.platform.inbound.graph.nodes.respond import make_respond_node
@@ -139,16 +133,6 @@ async def test_suggestions_justified_for_unknown_intent() -> None:
 
 @pytest.mark.asyncio
 async def test_clears_proposed_action_when_the_turn_concluded() -> None:
-    """Regression for the CRITICAL finding from PR 11's post-batch-3 verify
-    pass: `respond` is the only node every path passes through before `END`
-    (design.md §8.3), so it is the only place that can reliably clear a
-    completed turn's `proposed_action` -- otherwise it survives in the
-    checkpoint forever (LangGraph's default `LastValue` channel never clears
-    an omitted key) and `route_from_start` misroutes the NEXT, unrelated
-    turn straight into `confirmation_gate`. `confirmation` itself is left
-    untouched -- it is the caller-visible record of what happened THIS turn,
-    and nothing downstream keys off a stale non-"needed" value (see
-    respond.py's own docstring)."""
     generator = _FakeSuggestionGenerator(candidates=[])
     node = make_respond_node(generator)
     action = ProposedAction(action="appointment:create", is_mutating=True, payload={}, summary="Cita agendada")
@@ -171,9 +155,6 @@ async def test_clears_proposed_action_when_the_turn_concluded() -> None:
 
 @pytest.mark.asyncio
 async def test_preserves_proposed_action_when_confirmation_is_needed() -> None:
-    """The one exception: `confirmation_gate`'s own `"needed"` exit (turn N,
-    prompt just asked) MUST survive into the checkpoint so `route_from_start`
-    can jump straight back into `confirmation_gate` on turn N+1's reply."""
     generator = _FakeSuggestionGenerator(candidates=[])
     node = make_respond_node(generator)
     action = ProposedAction(action="appointment:create", is_mutating=True, payload={}, summary="Cita agendada")

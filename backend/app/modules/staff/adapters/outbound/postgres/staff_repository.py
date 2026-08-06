@@ -1,17 +1,3 @@
-"""`PostgresStaffRepository`: `StaffRepositoryPort` adapter over
-`staff_members` (design.md §4.4, migration d0e2489a94b8).
-
-Takes an already-open `AsyncConnection` rather than owning an engine, same
-pattern every other postgres adapter in this codebase follows. Composition
-root (tasks.md task 10.2) MUST construct this against `app.db.runtime_engine`
-(`app_runtime`, RLS-enforced) with the request's `SET LOCAL app.*` GUCs
-already applied -- never `app.db.engine` for a request-scoped query.
-
-No delete method by construction (mirrors `PostgresSchedulingRepository.
-cancel_appointment`'s "never deletes" precedent) -- `deactivate_staff_member`
-is the only supported terminal state transition, matching design.md §6's
-"baja no borra historia"."""
-
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 

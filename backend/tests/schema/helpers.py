@@ -1,10 +1,3 @@
-"""Row-builder helpers for schema tests (design.md §4.1/§4.3).
-
-Kept intentionally thin: each helper inserts exactly the columns a table
-requires and returns the generated id, so tests can build only the fixture
-graph they need (e.g. a scheduling test does not need a `consents` row).
-"""
-
 import uuid
 from contextlib import asynccontextmanager
 from typing import AsyncIterator

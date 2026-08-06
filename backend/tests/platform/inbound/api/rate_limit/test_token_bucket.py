@@ -1,9 +1,3 @@
-"""Task 5.3b: `TokenBucket`/`TokenBucketRegistry` -- per-instance, in-process
-token-bucket rate limiting for the patient chat endpoint (design.md §19:
-"token-bucket per-instance keyed por tenant+patient... se evita un write a
-store compartido por mensaje"). No Redis/shared store by design (ADR-17) --
-pure in-memory state, `ClockPort`-driven so tests are deterministic."""
-
 from datetime import datetime, timedelta, timezone
 
 from app.platform.inbound.api.rate_limit.token_bucket import TokenBucket, TokenBucketRegistry
@@ -72,9 +66,6 @@ async def test_registry_reuses_the_same_bucket_for_the_same_key() -> None:
 
 
 async def test_registry_evicts_the_least_recently_used_bucket_once_over_max_buckets() -> None:
-    """design.md ADR-17: this dimension only needs to "acotar costo", not
-    exactness -- an evicted bucket's patient gets a fresh full bucket on
-    their next message, which is acceptable."""
     clock = _FixedClock(datetime(2026, 1, 1, tzinfo=timezone.utc))
     registry = TokenBucketRegistry(capacity=1, refill_per_second=1.0, clock=clock, max_buckets=2)
 

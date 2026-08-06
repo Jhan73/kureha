@@ -1,27 +1,3 @@
-"""`ConnectPatientCalendar` use case (design.md §5.3/§7.3, tasks.md task
-9.4): `authorize(ctx, action)` first, then compare the OAuth-authorized
-Google account's email against the patient's registered email (spec
-`google-calendar-sync` -> "Per-Patient OAuth Using Registered Email").
-
-**Email mismatch is a RETURNED outcome, not a raised error** (mirrors
-`identity.Login`'s `LoginResult | AccountLinkRequired` shape) -- spec: "MUST
-flag the mismatch and MUST NOT silently sync ... without explicit patient
-confirmation". Nothing is encrypted or persisted on a mismatch; the caller
-(a future Phase 10 endpoint, not built) owns obtaining that explicit
-confirmation before any override path exists.
-
-**No `registered_email` on file is NOT a mismatch** -- there is nothing to
-compare against yet, so the connection proceeds (design.md doesn't specify
-requiring an email on file as a precondition; refusing to connect a
-calendar because of a separate, unrelated missing field would be inventing
-a requirement, not enforcing one).
-
-Does NOT invoke `AuditLogPort` on the CSRF/`state` check -- design.md §7.3
-places that verification in `GoogleCalendarAdapter`/the future Phase 10
-OAuth callback endpoint, upstream of this use case ever being called (by the
-time `execute` runs, the authorization `code` has already been exchanged for
-`refresh_token`)."""
-
 from app.modules.calendar.application.ports.driven.calendar_credential_repository import (
     CalendarCredentialRepositoryPort,
 )

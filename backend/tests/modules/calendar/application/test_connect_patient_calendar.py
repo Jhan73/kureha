@@ -1,11 +1,3 @@
-"""Task 9.4: `ConnectPatientCalendar` use case -- `authorize(ctx, action)`
-first (design.md §5.3), then compare the OAuth-authorized Google account's
-email against the patient's registered email (spec `google-calendar-sync`
--> "Per-Patient OAuth Using Registered Email"): a match encrypts+persists
-the refresh token and audits `calendar.connect`; a mismatch persists
-NOTHING and returns `CalendarEmailMismatch` instead of raising. Fakes only,
-no DB."""
-
 from app.modules.calendar.application.use_cases.connect_patient_calendar import ConnectPatientCalendar
 from app.modules.calendar.domain.connect_calendar_result import CalendarConnected, CalendarEmailMismatch
 from app.modules.calendar.domain.encrypted_secret import EncryptedSecret

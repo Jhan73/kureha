@@ -1,6 +1,3 @@
-"""Task 2.9: RLS isolation for staff_members/shifts (design.md §4.4's
-"tenant+site+role" shape, migration 613f9ea3526f)."""
-
 from datetime import datetime, timedelta, timezone
 
 import sqlalchemy as sa

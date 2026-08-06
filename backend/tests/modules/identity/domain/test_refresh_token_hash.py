@@ -1,6 +1,3 @@
-"""Task 4.3/4.4: `hash_refresh_token` -- deterministic, one-way (design.md
-§17.4: "refresh opaco... hash" -- never the plaintext stored)."""
-
 from app.modules.identity.domain.refresh_token_hash import hash_refresh_token
 
 

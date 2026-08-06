@@ -1,19 +1,3 @@
-"""Task 5.1: `JwtAccessTokenVerifier` -- production `AccessTokenVerifierPort`
-impl, the counterpart the access-control middleware needs to decode the
-access JWT `JwtAccessTokenIssuer` mints (design.md §17.4/ADR-15, same HS256
-secret/algorithm). Mirrors `test_jwt_access_token_issuer.py`'s style, but
-unlike that test (which decodes with `verify_exp=False` to inspect claims
-only), this exercises the real verifier end-to-end -- `jwt.decode` validates
-`exp` AND `iat` against the REAL wall clock, so `SystemClock` (not an
-arbitrary fixed date) must back every "valid token" case here; an arbitrary
-fixed `iat` in the future would itself fail as `ImmatureSignatureError`.
-
-Deliberately returns `None` on ANY verification failure (bad signature,
-expired, malformed) rather than raising -- design.md §4.2's flow treats
-"token invalid/expired" as a single rejection branch (401, refresh
-required), never distinguishing the exact `PyJWTError` subtype back to the
-caller."""
-
 from datetime import timedelta
 
 from app.modules.identity.adapters.outbound.tokens.jwt_access_token_issuer import JwtAccessTokenIssuer

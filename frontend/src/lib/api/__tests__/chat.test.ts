@@ -3,13 +3,7 @@ import { streamChat } from "../chat";
 import { ApiError } from "../client";
 import type { ChatStreamEvent } from "../types";
 
-/**
- * Builds a `Response` whose `.body` is a real `ReadableStream<Uint8Array>`
- * emitting the given chunks one at a time -- mirrors how a genuine SSE
- * `StreamingResponse` delivers bytes incrementally, not as one buffer, so
- * `streamChat`'s own chunk-buffering/frame-boundary logic is exercised for
- * real rather than assumed.
- */
+/** Emits chunks one at a time to exercise frame-boundary buffering. */
 function sseResponse(status: number, chunks: string[]): Response {
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
@@ -48,7 +42,6 @@ describe("streamChat", () => {
     const frame2 = 'event: token\ndata: {"delta":"Tengo estos horarios "}\n\n';
     const frame3 =
       'event: done\ndata: {"audit_ref":"aud-1","calendar_sync_status":"ok","finish_reason":"stop"}\n\n';
-    // Split frame2 mid-frame across two chunks to prove buffering works.
     const splitIndex = Math.floor(frame2.length / 2);
     const authorizedFetch = vi.fn().mockResolvedValueOnce(
       sseResponse(200, [

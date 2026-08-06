@@ -1,15 +1,3 @@
-"""Task 5.1/5.2: `AccessControlMiddleware` -- orchestration only, tested
-against fakes for every driven dependency (same style as
-`tests/modules/identity/application/test_login.py`: fake ports, no DB). The
-DB-backed pieces this middleware composes (`PostgresLiveActorResolver`,
-`set_session_context`, `PostgresAuditLog`) each have their own real-Postgres
-adapter tests elsewhere.
-
-Exercises `dispatch()` directly against a hand-built Starlette `Request`
-(no ASGI transport / TestClient) so exception propagation and
-`request.state` mutation are simple to assert.
-"""
-
 from datetime import timedelta
 
 import pytest
@@ -101,11 +89,7 @@ class _FakeAuditLog:
 
 
 class _FailingAuditLog:
-    """CRITICAL fix #1 (fresh-review pass, kureha-mvp PR 6): an
-    `AuditLogPort` fake whose `record()` always raises, used to prove a
-    failed audit write can never replace the intended deny response with an
-    unhandled 500 (e.g. an FK violation from `SYSTEM_TENANT_ID` having no
-    seeded `tenants` row yet)."""
+    """`AuditLogPort` fake whose `record` always raises."""
 
     async def record(self, entry: AuditEntry) -> str:
         raise RuntimeError("audit backend unavailable")
@@ -203,11 +187,6 @@ async def test_token_missing_required_claims_is_denied_and_audited() -> None:
 
 
 async def test_token_missing_tenant_id_claim_is_denied_and_audited() -> None:
-    """CRITICAL fix #3 (kureha-mvp PR 6 verify report, obs #414): a
-    cryptographically valid token whose `tenant_id` claim is absent
-    entirely (forged/malformed -- Kureha's own issuer always sets it)
-    must still be audited, not silently no-op'd, per the access-control
-    spec's "Missing session claims... rejection MUST be recorded"."""
     middleware, audit_entries, _ = _build_middleware(
         claims_by_token={"tok": _claims(tenant_id=None)},
     )
@@ -227,8 +206,6 @@ async def test_token_missing_tenant_id_claim_is_denied_and_audited() -> None:
 
 
 async def test_unmapped_identity_is_denied_and_audited() -> None:
-    """Task 5.2's core scenario: token cryptographically valid, no
-    mappable `users` row -- deny, never fall back to a default role."""
     middleware, audit_entries, session = _build_middleware(
         claims_by_token={"tok": _claims(sub="ghost-user", tenant_id="t1")},
         live_actors={},
@@ -343,10 +320,6 @@ async def test_downstream_exception_rolls_back_and_propagates() -> None:
 
 
 async def test_audit_write_failure_does_not_prevent_unmapped_identity_denial() -> None:
-    """CRITICAL fix #1 (fresh-review pass): `_audit_unmapped`'s write can
-    fail (e.g. FK violation on `SYSTEM_TENANT_ID`, which has no seeded
-    `tenants` row yet). That failure must never replace the intended 401
-    with an unhandled 500 -- the deny decision always wins."""
     middleware, _, _ = _build_middleware(
         claims_by_token={"tok": _claims(tenant_id=None)},
         audit_log=_FailingAuditLog(),
@@ -361,8 +334,6 @@ async def test_audit_write_failure_does_not_prevent_unmapped_identity_denial() -
 
 
 async def test_audit_write_failure_does_not_prevent_inactive_actor_denial() -> None:
-    """Same guarantee as above for `_audit_inactive` -- a failed audit
-    write must never turn the intended 403 into an unhandled 500."""
     middleware, _, _ = _build_middleware(
         claims_by_token={"tok": _claims()},
         live_actors={"u1": _actor(status="inactive")},

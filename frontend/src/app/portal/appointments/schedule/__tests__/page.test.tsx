@@ -155,13 +155,6 @@ describe("SchedulePage", () => {
     expect(await screen.findByText("Slot no longer available")).toBeInTheDocument();
   });
 
-  // Spec `patient-self-service-portal` -> "Consent Gate Enforced in Portal"
-  // -> "Pending consent blocks form submission" (verify-report #414 gap
-  // closure): the backend's new `consent_required`/403 envelope is not a
-  // new error shape the frontend needs to special-case -- it flows through
-  // the SAME generic `ApiError` message display every other backend error
-  // already uses. This test pins that behavior specifically for the
-  // consent scenario, not just "some ApiError".
   it("blocks submission and shows the consent message when the backend denies for missing consent", async () => {
     mockAuth({});
     vi.mocked(scheduleAppointment).mockRejectedValueOnce(

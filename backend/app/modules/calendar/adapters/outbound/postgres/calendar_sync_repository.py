@@ -1,11 +1,3 @@
-"""`PostgresCalendarSyncRepository`: `CalendarSyncRepositoryPort` adapter
-over `calendar_sync` (design.md §4.4/§7.2/§7.5, migration 00d985a7bfa5).
-
-Takes an already-open `AsyncConnection`, same pattern as every other
-postgres adapter here. Composition root (tasks.md task 10.2) MUST construct
-this against a connection with `app.role IN ('reception','professional',
-'admin')` already set -- see the port's own module docstring."""
-
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 

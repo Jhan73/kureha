@@ -1,10 +1,3 @@
-"""Task 2.3: consent_policies, consents (design.md §4.1, §11).
-
-Both tables are tenant-scoped (not site-scoped): a clinic (tenant) is its own
-legal entity and owns one current consent policy version regardless of which
-site a patient was registered at.
-"""
-
 import sqlalchemy as sa
 
 from tests.schema.helpers import expect_violation, make_patient, make_site, make_tenant
@@ -165,9 +158,6 @@ async def test_consent_revoked_with_both_timestamps_succeeds(db_conn, tenant_id)
 
 
 async def test_consent_policy_version_scoped_by_tenant_not_reusable_cross_tenant(db_conn) -> None:
-    """A policy version that exists for tenant A must not satisfy the FK for
-    a consent recorded under tenant B (design.md §4.1: composite FK on
-    (tenant_id, policy_version))."""
     tenant_a = await make_tenant(db_conn)
     tenant_b = await make_tenant(db_conn)
     patient_b = await make_patient(db_conn, tenant_b)

@@ -1,12 +1,3 @@
-"""Task 2.5: action_permissions, role_permissions, user_permissions
-(design.md §4.4, §5).
-
-`action_permissions` is a global catalog (seeded in code, not tenant-scoped).
-`role_permissions`/`user_permissions` are tenant-scoped, keyed by
-`(tenant_id, role|user_id, action)`, with `allowed` explicit (deny-by-default
-per §5.2: no row for an action means denied, never ambiguous).
-"""
-
 import sqlalchemy as sa
 from sqlalchemy.exc import IntegrityError
 
@@ -206,8 +197,6 @@ async def test_user_permissions_rejects_action_not_in_catalog(db_conn, tenant_id
 
 
 async def test_user_permissions_user_id_must_belong_to_same_tenant(db_conn) -> None:
-    """Composite FK (tenant_id, user_id) -> users(tenant_id, id): a user from
-    a different tenant must not be assignable an override in this tenant."""
     from tests.schema.helpers import make_site, make_user
 
     await _seed_action(db_conn)

@@ -1,6 +1,4 @@
-// Shape of the backend's `TokenResponse` (see
-// backend/app/platform/inbound/api/routers/auth.py). Field names stay in
-// snake_case to mirror the wire format exactly -- no client-side renaming.
+// Wire format is snake_case; do not rename client-side.
 export interface TokenResponse {
   access_token: string;
   refresh_token: string;
@@ -14,9 +12,6 @@ export interface LoginParams {
   password: string;
 }
 
-// Shape of the backend's `AppointmentResponse` / `ReminderResponse` (see
-// backend/app/platform/inbound/api/routers/scheduling.py). Field names stay
-// in snake_case to mirror the wire format exactly -- no client-side renaming.
 export interface AppointmentResponse {
   id: string;
   tenant_id: string;
@@ -44,9 +39,6 @@ export interface RescheduleAppointmentParams {
   newAvailabilityId: string;
 }
 
-// Shape of the backend's §21 error envelope (see
-// backend/app/platform/inbound/api/errors.py / design.md §21), reused
-// verbatim for the `/chat/stream` SSE `error` event payload.
 export interface ErrorEnvelope {
   error_code: string;
   category: string;
@@ -55,11 +47,7 @@ export interface ErrorEnvelope {
   correlation_id: string;
 }
 
-// The four SSE event shapes `POST /chat/stream` emits (design.md §8.5,
-// backend/app/platform/inbound/api/routers/chat.py's `_stream_turn`).
-// `type` here is a client-side discriminant added while parsing the wire
-// `event: {type}` line -- it does not appear in the JSON `data:` payload
-// itself.
+// Discriminant from SSE `event:` line, not the JSON `data:` payload.
 export interface ChatStatusEvent {
   type: "status";
   phase: string;

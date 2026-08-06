@@ -1,28 +1,7 @@
-"""staff tables staff_members shifts
+"""Add staff_members and shifts tables with overlap exclusion.
 
-Task 2.6 (openspec/changes/kureha-mvp/tasks.md, Phase 2). Schema per
-design.md §4.4/§6. `staff_members` is operational registry only (no HR
-fields: no payroll/contracts/performance). `shifts` gets the same
-anti-overlap `EXCLUDE USING gist` pattern already used for `availability`
-(3505dc8ce3ad) and (implicitly) `appointments`, scoped per
-`staff_member_id`.
-
-RLS is deferred to task 2.9, same convention as every other Phase 2 schema
-migration.
-
-NOTE (tightening on top of design.md's literal SQL, flagged not silently
-applied -- same class of fix as 8fc0dc6f958d/3505dc8ce3ad/5975cbe7665e/
-7d88aa8f8a51): `site_id`/`user_id`/`professional_id` on `staff_members`, and
-`site_id`/`staff_member_id` on `shifts`, are composite FKs
-`(tenant_id, x_id) REFERENCES table(tenant_id, id)` instead of bare
-`REFERENCES table(id)`, so a row belonging to a different tenant can never be
-assigned. `staff_members` gets its own `UNIQUE(tenant_id, id)` so `shifts`
-can FK into it the same way. `shifts` also gets its own `UNIQUE(tenant_id, id)`
-(found in review: without it, `shifts` was the only tenant table with no
-index whose leading column is `tenant_id`/`site_id`, forcing a sequential
-scan across all tenants to evaluate task 2.9's RLS tenant/site filter --
-its own `EXCLUDE USING gist` is keyed on `staff_member_id`/time-range, not
-useful for that filter).
+Composite FKs for tenant integrity; UNIQUE(tenant_id, id) on both for
+RLS/index friendliness and shifts FK into staff_members.
 
 Revision ID: d0e2489a94b8
 Revises: 7d88aa8f8a51

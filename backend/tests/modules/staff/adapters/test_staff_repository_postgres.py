@@ -1,9 +1,3 @@
-"""Task 8.3: `PostgresStaffRepository` -- `StaffRepositoryPort` adapter over
-`staff_members` (design.md §4.4, migration d0e2489a94b8).
-
-Uses `rls_conn` (the `app_runtime`/RLS-enforced connection), same contract as
-`PostgresTenantRepository`/`PostgresSchedulingRepository`'s test modules."""
-
 from tests.rls.helpers import seed_professional, seed_site, seed_tenant, set_app_context
 
 from app.modules.staff.adapters.outbound.postgres.staff_repository import PostgresStaffRepository
@@ -60,11 +54,6 @@ async def test_get_staff_member_returns_none_for_unknown_id(rls_conn) -> None:
 
 
 async def test_find_by_professional_id_returns_the_matching_staff_member(rls_conn) -> None:
-    """Task 10.2 (composition-root seam for `StaffStatusPort`, tasks.md task
-    8.4): `ScheduleAppointment`/`RescheduleAppointment` only ever have a
-    `professional_id`, never a `staff_members.id` -- the real
-    `StaffStatusPort` adapter needs a lookup keyed by `professional_id`, not
-    `get_staff_member`'s primary-key lookup."""
     tenant_id, site_id, professional_id = await _seed_scenario(rls_conn)
     repository = PostgresStaffRepository(rls_conn)
     created = await repository.create_staff_member(
@@ -96,7 +85,7 @@ async def test_deactivate_staff_member_sets_status_inactive_never_deletes(rls_co
 
     assert deactivated.status == StaffStatus.INACTIVE
     assert deactivated.deactivated_at is not None
-    # The row still exists (deactivate never deletes, design.md §6).
+    # The row still exists (deactivate never deletes).
     refetched = await repository.get_staff_member(tenant_id, created.id)
     assert refetched is not None
     assert refetched.status == StaffStatus.INACTIVE

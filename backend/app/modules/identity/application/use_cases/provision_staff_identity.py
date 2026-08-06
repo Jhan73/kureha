@@ -1,40 +1,3 @@
-"""`ProvisionStaffIdentity` use case (design.md §17 extension, staff-invite
-batch): the identity-module half of `POST /staff/register`'s new invite
-flow. Creates a fresh, authenticatable identity for a NEW staff member --
-invites the email via Supabase (`AuthPort.invite_user`, no password ever
-set/seen by the admin who registers them, per the product decision this
-batch implements) and creates the corresponding `users`/`user_credentials`
-rows (`UserDirectoryPort.provision_staff_user`).
-
-Deliberately does NOT create the `staff_members` operational-registry row --
-that remains `RegisterStaff`'s (staff module) job, unchanged. The router
-(`platform/inbound/api/routers/staff.py`) calls THIS use case first to
-obtain a `user_id`, then calls `RegisterStaff.execute(..., user_id=...)`
-with it -- two separate use cases in two separate business modules, matching
-backend/AGENTS.md's "business modules never import each other directly"
-constraint (this module cannot import `staff.domain.staff_member
-.OperationalRole`, hence `role: str`, not that enum -- see
-`UserDirectoryPort.provision_staff_user`'s own docstring for the same
-constraint reflected at the port layer).
-
-**RBAC note:** this use case does NOT call `AuthorizeAction` itself (unlike
-`RegisterStaff`, which does). The router explicitly authorizes
-(`staff:register`) BEFORE calling this use case -- mirroring `scheduling.py`'s
-`_require_authorized` precedent -- because this use case has REAL,
-externally-visible side effects (a Supabase invite email is sent, a `users`
-row is created) that must not happen for an unauthorized caller merely
-because `RegisterStaff`'s own internal check would catch it AFTER the fact,
-too late to undo either side effect.
-
-`invite_redirect_url` (added this session, gap-closure fix -- see
-`docs/supabase-setup.md` §6): unlike `RequestPasswordReset`, THIS use case
-knows the identity being provisioned is always staff (`_STAFF_ROLES`), so
-`composition_root.py`'s `build_provision_staff_identity` targets
-`Settings.frontend_base_url` + `/staff/login` -- the closest real, existing
-page a newly-invited staff member could land on today. Flagged, not
-silently invented: no dedicated "complete your invite" page exists yet on
-the frontend; a future task should build one and point this at it instead."""
-
 from app.modules.governance.audit.application.ports.driven.audit_log import AuditLogPort
 from app.modules.governance.audit.domain.audit_entry import AuditAction, AuditActorType, AuditEntry
 from app.modules.identity.application.ports.driven.auth import AuthPort
@@ -68,11 +31,6 @@ class ProvisionStaffIdentity:
         if role not in _STAFF_ROLES:
             raise ValidationError(f"role must be one of {sorted(_STAFF_ROLES)}, got {role!r}")
         if role == "professional" and professional_id is None:
-            # users.professional_id IS NOT NULL when role='professional'
-            # (migration 8fc0dc6f958d's CHECK constraint) -- validated here,
-            # BEFORE ever calling Supabase, so a bad request never triggers
-            # a real invite email for a provisioning attempt that would fail
-            # anyway.
             raise ValidationError("professional_id is required when role is 'professional'")
 
         existing = await self._user_directory.find_by_email(tenant_id, email)

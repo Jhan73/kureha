@@ -1,7 +1,3 @@
-"""Task 11.2: `reminders_agent` node -- plans a `ProposedAction` via
-`ReminderPlannerPort`; always `risk_level="low"` (no `RiskPolicy` rule for
-reminders)."""
-
 import pytest
 
 from app.platform.inbound.graph.nodes.reminders_agent import make_reminders_agent_node

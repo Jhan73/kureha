@@ -1,22 +1,3 @@
-"""Task 10.2: `app.composition_root` -- integration tests against real
-Postgres (via the RLS-enforced `rls_conn`/`app_runtime` fixture, never a
-fake port) proving the four gaps that module's docstring lists are actually
-closed:
-
-1. `build_permission_service` hands out a fresh instance per call, never a
-   cached/singleton one (design.md §5.6/ADR-16).
-2. `PostgresStaffStatusAdapter` correctly resolves assignable/not-assignable
-   against real `staff_members` data (tasks.md task 8.4's seam).
-3. `PostgresAppointmentSnapshotAdapter` returns real `appointments` data
-   (tasks.md task 9.5's seam).
-4. `build_sync_appointment_to_calendar` resolves `SyncAppointmentToCalendar`'s
-   dual-role RLS boundary end-to-end -- the patient-scoped credential read
-   AND the staff-scoped sync write both succeed in one flow, which a single
-   fixed role could not do.
-
-Also covers `bootstrap_rbac_catalog_and_grants` (task 3.6's forward pointer,
-closed here)."""
-
 from datetime import datetime, timezone
 
 import sqlalchemy as sa
@@ -79,10 +60,6 @@ _T1 = datetime(2026, 9, 1, 10, 0, tzinfo=timezone.utc)
 
 
 class _FakeCredentialVault:
-    """No real KEK/DEK material needed here -- `AesGcmVault`'s own round-trip
-    is already covered by tests/modules/calendar/adapters/test_aes_gcm_vault.py.
-    This test's concern is the RLS role-boundary, not encryption."""
-
     async def encrypt(self, plaintext: bytes):
         raise NotImplementedError
 
@@ -91,10 +68,6 @@ class _FakeCredentialVault:
 
 
 class _FakeCalendarSyncPort:
-    """No real Google API call needed here -- `GoogleCalendarAdapter`'s own
-    contract is already covered by test_google_calendar_adapter.py. This
-    test's concern is the RLS role-boundary, not the external HTTP call."""
-
     def __init__(self) -> None:
         self.upsert_calls: list = []
 
@@ -107,13 +80,6 @@ class _FakeCalendarSyncPort:
 
 
 async def test_build_permission_service_returns_a_fresh_instance_each_call(rls_conn) -> None:
-    """design.md §5.6/ADR-16, tasks.md task 10.2's own "add a test asserting
-    this at the composition-root level": two calls to
-    `build_permission_service` return two distinct Python objects, and a
-    grant that changes between calls is visible to the second instance
-    immediately -- no memo carried over from the first (mirrors
-    `PermissionService`'s own `test_a_fresh_service_instance_never_sees_a_stale_memo`,
-    exercised through the actual composition-root factory this time)."""
     tenant_id = await seed_tenant(rls_conn)
     await set_app_context(rls_conn, tenant_id=tenant_id, role="admin")
     await rls_conn.execute(
@@ -222,13 +188,6 @@ async def test_postgres_appointment_snapshot_adapter_returns_none_when_appointme
 
 
 async def test_sync_appointment_to_calendar_resolves_the_dual_role_rls_boundary(rls_conn) -> None:
-    """tasks.md task 10.2: `SyncAppointmentToCalendar` reads
-    `calendar_credentials` (patient-only RLS policy) and writes
-    `calendar_sync` (staff-only RLS policy) in ONE flow. Proves both halves
-    succeed through `build_sync_appointment_to_calendar`'s role-scoping
-    wrapper, and that a single FIXED role could not have done it: under a
-    connection fixed at the staff role alone, the patient-only credential
-    row is invisible (asserted directly below, before the wrapped call)."""
     tenant_id = await seed_tenant(rls_conn)
     site_id = await seed_site(rls_conn, tenant_id)
     professional_id = await seed_professional(rls_conn, tenant_id, site_id)
@@ -279,29 +238,6 @@ async def test_sync_appointment_to_calendar_resolves_the_dual_role_rls_boundary(
 
 
 async def test_bootstrap_rbac_catalog_and_grants_seeds_the_catalog_and_every_existing_tenant(rls_conn) -> None:
-    """tasks.md task 3.6's own forward pointer, closed here: the seed
-    functions actually get invoked, not just defined.
-
-    **Flagged bug found this session (PR 11 batch 3), NOT fixed at its own
-    source -- out of this batch's scope (Phase 3/10 code):**
-    `bootstrap_rbac_catalog_and_grants` loops `SET LOCAL app.tenant_id =
-    <tenant>` over EVERY existing tenant (no `ORDER BY` on `SELECT id FROM
-    tenants`) and never restores the caller's own `app.tenant_id` GUC
-    afterward -- so by the time this function returns, `app.tenant_id` on
-    `conn` points at whichever tenant was iterated LAST, not necessarily the
-    one THIS test created. `role_permissions_tenant`'s RLS policy filters on
-    `current_setting('app.tenant_id')` -- once enough OTHER tenants exist in
-    the shared dev Postgres (this session accumulated many via router tests'
-    real, permanently-committed seed data, `conftest.py`'s own documented
-    behavior), this test's own `tenant_id` stopped reliably being the LAST
-    one iterated, and its own read-back query started intermittently
-    returning 0 rows -- NOT a regression in this batch's own node/edge
-    logic. Fixed here with a defensive `set_app_context` re-assertion right
-    before the read, the minimal safe change that does not touch
-    `bootstrap_rbac_catalog_and_grants` itself; the real fix (documented,
-    not applied) belongs in that function -- either restore the caller's
-    original GUCs on exit, or have callers never rely on `conn`'s
-    tenant-scoping surviving a call to it."""
     tenant_id = await seed_tenant(rls_conn)
 
     await bootstrap_rbac_catalog_and_grants(rls_conn)
@@ -319,15 +255,6 @@ async def test_bootstrap_rbac_catalog_and_grants_seeds_the_catalog_and_every_exi
 
 
 async def test_build_register_staff_and_build_create_shift_wire_working_use_cases(rls_conn) -> None:
-    """tasks.md task 11.5 (PR 11 batch 3): `build_register_staff`/
-    `build_create_shift`/`build_deactivate_staff`/`build_edit_shift` had NO
-    composition-root wiring before this batch (confirmed via `grep
-    "^def build_" app/composition_root.py`) -- `persist_and_audit`'s
-    dispatch table (unit-tested with fakes) is their first real caller.
-    This test proves the ACTUAL wiring against real Postgres for the two
-    representative cases (register + create), mirroring
-    `test_bootstrap_rbac_catalog_and_grants_seeds_the_catalog_and_every_
-    existing_tenant`'s own pattern above."""
     tenant_id = await seed_tenant(rls_conn)
     await bootstrap_rbac_catalog_and_grants(rls_conn)
     site_id = await seed_site(rls_conn, tenant_id)
@@ -360,8 +287,6 @@ async def _staff_member_id_for(rls_conn, professional_id: str) -> str:
 
 
 async def test_bootstrap_rbac_catalog_and_grants_is_idempotent(rls_conn) -> None:
-    """Same flagged GUC-drift bug as the test above -- re-asserts
-    `app.tenant_id` before the read-back, see that test's own docstring."""
     tenant_id = await seed_tenant(rls_conn)
 
     await bootstrap_rbac_catalog_and_grants(rls_conn)
@@ -374,14 +299,6 @@ async def test_bootstrap_rbac_catalog_and_grants_is_idempotent(rls_conn) -> None
         )
     ).scalar_one()
     assert granted_count == sum(len(actions) for actions in DEFAULT_DEV_ROLE_PERMISSIONS.values())
-
-
-# tasks.md task 12.3/task 12.2's adapter half (PR 12 batch 1): the three real,
-# Anthropic-backed LLM seam adapters wired into `GraphDependencies` by
-# `platform/inbound/api/routers/chat.py`'s `get_graph_dependencies`. No
-# `rls_conn`/Postgres needed here -- constructing `ChatAnthropic` never
-# itself calls the Anthropic API (see `adapters/llm.py`'s own docstring),
-# so these are pure wiring/construction tests, not integration tests.
 
 
 def test_build_scope_policy_returns_a_real_anthropic_backed_adapter() -> None:
@@ -403,10 +320,6 @@ def test_build_affirmation_classifier_returns_a_real_anthropic_backed_adapter() 
 
 
 def test_the_three_llm_seam_builders_accept_a_shared_pre_built_chat_model() -> None:
-    """`get_graph_dependencies` (chat.py) builds ONE fast-tier `ChatAnthropic`
-    and shares it across all three adapters for this batch (one HTTP client,
-    not three) -- proven by passing an already-built model through without
-    any of the three builders raising or building a second one internally."""
     fast_llm = build_chat_model("fast")
 
     assert isinstance(build_scope_policy(fast_llm), AnthropicScopePolicy)
@@ -445,9 +358,6 @@ def test_build_suggestion_generator_returns_a_real_anthropic_backed_adapter() ->
 
 
 def test_scheduling_and_staff_planner_builders_accept_a_shared_reasoner_model() -> None:
-    """`get_graph_dependencies` shares ONE reasoner-tier `ChatAnthropic`
-    across both reasoner-tier adapters (design.md §8.10), same convention as
-    the fast-tier seams above."""
     reasoner_llm = build_chat_model("reasoner")
 
     assert isinstance(build_scheduling_planner(reasoner_llm), AnthropicSchedulingPlanner)
@@ -460,12 +370,6 @@ def test_the_three_new_fast_tier_builders_accept_a_shared_pre_built_chat_model()
     assert isinstance(build_reminder_planner(fast_llm), AnthropicReminderPlanner)
     assert isinstance(build_direct_response(fast_llm), AnthropicDirectResponse)
     assert isinstance(build_suggestion_generator(fast_llm), AnthropicSuggestionGenerator)
-
-
-# ---------------------------------------------------------------------------
-# PR 12 batch 3 (tasks.md task 12.1's rate-limiter/budget wiring):
-# `build_get_tenant`/`build_chat_rate_limiter`.
-# ---------------------------------------------------------------------------
 
 
 async def test_build_get_tenant_reads_the_real_llm_daily_budget_column(rls_conn) -> None:
@@ -485,21 +389,7 @@ def test_build_chat_rate_limiter_returns_a_real_chat_rate_limiter(rls_conn) -> N
     assert isinstance(limiter, ChatRateLimiter)
 
 
-# ---------------------------------------------------------------------------
-# tasks.md task 10.2's own forward pointer, closed here:
-# `auth_rate_limit_middleware.py`'s module docstring deferred the
-# `auth_account` dimension explicitly to "a future Phase 10 handler [that]
-# can call [FixedWindowRateLimiter/PostgresRateCounterStore] directly with
-# dimension='auth_account'" -- `build_auth_account_rate_limiter` is that
-# wiring, consumed by `routers/auth.py`'s `login` handler.
-# ---------------------------------------------------------------------------
-
-
 def test_build_auth_account_rate_limiter_returns_a_real_fixed_window_limiter(db_conn) -> None:
-    """`rate_counters` has no RLS (design.md §4.4) -- uses `db_conn`
-    (elevated), same convention `test_postgres_rate_counter_store.py`'s own
-    docstring documents for every other adapter over this table, not
-    `rls_conn`."""
     from app.platform.inbound.api.rate_limit.fixed_window_limiter import FixedWindowRateLimiter
 
     limiter = build_auth_account_rate_limiter(db_conn)
@@ -508,11 +398,6 @@ def test_build_auth_account_rate_limiter_returns_a_real_fixed_window_limiter(db_
 
 
 async def test_build_auth_account_rate_limiter_actually_persists_counts_against_real_postgres(db_conn) -> None:
-    """Proves the wiring is real, not just type-correct: the SAME `subject`
-    accumulates across calls, and the `tenant_id` column is populated (the
-    account dimension, unlike the IP dimension, always has a real tenant at
-    check time). `rate_counters.tenant_id` is a real `uuid` column -- a
-    fixture-seeded `tenants.id`, not an arbitrary string, is required."""
     tenant_id = await seed_tenant(db_conn)
     limiter = build_auth_account_rate_limiter(db_conn)
     subject = f"{tenant_id}:acct-limiter@example.com"
@@ -530,11 +415,6 @@ async def test_build_auth_account_rate_limiter_actually_persists_counts_against_
 
 
 def test_build_chat_rate_limiter_shares_the_same_process_wide_token_bucket_registry(rls_conn) -> None:
-    """The token-bucket registry MUST be a process-wide singleton (design.md
-    §19: "token-bucket per-instance") -- a fresh registry per call would
-    reset every caller's cadence limit on each request, defeating the whole
-    mechanism. Proven by constructing the limiter twice and checking both
-    share the exact same underlying registry instance."""
     first = build_chat_rate_limiter(rls_conn)
     second = build_chat_rate_limiter(rls_conn)
 

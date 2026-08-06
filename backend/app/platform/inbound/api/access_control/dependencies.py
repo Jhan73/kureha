@@ -1,17 +1,3 @@
-"""FastAPI request-scoped `Depends()` providers (tasks.md task 10.1),
-closing the last mile between `AccessControlMiddleware`'s
-`request.state.*` projection (middleware.py's `_forward_with_session`) and
-router handlers.
-
-Every provider here ASSUMES `AccessControlMiddleware` already ran for this
-request (i.e. the route is NOT in `exempt_path_prefixes`) -- calling one of
-these from an exempt route (e.g. `/auth/login`) would raise `AttributeError`
-on a missing `request.state` attribute, by design: pre-auth routes have no
-`TenantContext`/`LiveActor`/scoped connection to hand out yet, and must not
-declare these dependencies at all (see `app/platform/inbound/api/routers/
-auth.py`'s `login`/`refresh` handlers, which use
-`composition_root.open_elevated_connection()` directly instead)."""
-
 import httpx
 from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncConnection

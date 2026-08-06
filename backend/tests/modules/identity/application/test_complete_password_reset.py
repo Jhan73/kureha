@@ -1,11 +1,3 @@
-"""`CompletePasswordReset` use case (design.md §17 extension, staff-invite /
-password-reset batch): exchanges a Supabase recovery/invite token for a new
-password and mints a fresh access+refresh pair -- the SAME completion step
-for both the invite-acceptance flow and the "forgot password" flow (see
-`AuthPort.complete_password_reset`'s own docstring). Mirrors `test_login.py`'s
-fake-ports-only convention exactly; `_issue`/`mint_login_result` is the SAME
-helper `Login` uses."""
-
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -132,20 +124,6 @@ class _FakeSecretGenerator:
 
 
 class _FakeAuditLog:
-    """`IsolatedAuditLogPort` fake -- `record_best_effort`, not `record`
-    (fix, CONFIRMED fresh-review finding: `CompletePasswordReset._deny_unmapped`
-    now depends on `IsolatedAuditLogPort`, not a plain `AuditLogPort`, so its
-    deny-audit write cannot share a connection/transaction with the rest of
-    the use case -- see that module's own docstring). A REAL
-    `IsolatedAuditLogPort` implementation never raises (its own docstring:
-    any failure is logged and swallowed on its own isolated connection) --
-    this fake mirrors that contract exactly, it never raises either. The
-    isolation mechanism itself (a genuinely separate connection surviving a
-    real FK violation) is proven end to end at the HTTP layer instead
-    (`tests/platform/inbound/api/routers/test_password_reset_router.py`),
-    against the real `ElevatedIsolatedAuditLog`/`open_elevated_connection`
-    composition-root wiring a fake can't stand in for."""
-
     def __init__(self) -> None:
         self.recorded = []
 
@@ -189,10 +167,6 @@ async def test_completing_reset_resolves_by_auth_subject_and_mints_tokens() -> N
 
 @pytest.mark.asyncio
 async def test_completing_reset_falls_back_to_email_lookup_when_subject_is_unmapped() -> None:
-    """The invite-acceptance case: `auth_subject` was just created by
-    Supabase's admin `invite_user` call and is stored on `user_credentials`
-    already -- but a plain "forgot password" for an account that never had a
-    federated subject linked resolves by email instead."""
     user = _user(auth_subject=None)
     auth = _FakeAuth(result=AuthnResult(subject="supabase-sub-new", email="a@example.com", email_verified=True, provider="password"))
     directory = _FakeUserDirectory(by_email={("t1", "a@example.com"): user})

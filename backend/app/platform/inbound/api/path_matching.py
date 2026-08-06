@@ -1,8 +1,3 @@
-"""Shared path-prefix matching helper, deduplicated out of
-`AccessControlMiddleware._is_exempt` and `AuthRateLimitMiddleware._is_protected`
-(both middlewares previously carried their own identical
-`path == prefix or path.startswith(prefix)` implementation)."""
-
 
 def matches_any_prefix(path: str, prefixes: frozenset[str]) -> bool:
     """Returns `True` if `path` starts with ANY of `prefixes`.

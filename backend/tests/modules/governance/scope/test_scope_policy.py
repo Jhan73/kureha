@@ -1,7 +1,3 @@
-"""Task 3.4: `ClinicalScopePolicy` inbound+outbound classifier interface
-(design.md §8.7). Only the interface/value objects are in scope for this
-task -- the LLM-backed classifier adapter lands in tasks.md Phase 12."""
-
 import inspect
 
 from app.modules.governance.scope.domain.scope_policy import (
@@ -14,8 +10,6 @@ from app.modules.governance.scope.domain.scope_policy import (
 
 
 def test_inbound_scope_category_covers_the_three_refusal_triggers() -> None:
-    """design.md §8.7: intent clinico/diagnostico, prompt injection/jailbreak,
-    y framing de fuga tenant/scope -- las tres se rehusan igual."""
     assert {c.value for c in InboundScopeCategory} == {
         "in_scope",
         "clinical_diagnosis",
@@ -54,11 +48,6 @@ def test_clinical_scope_policy_is_an_async_protocol_with_inbound_and_outbound_me
 
 
 def test_classify_methods_take_a_tenant_context() -> None:
-    """`TENANT_SCOPE_LEAKAGE` (both categories) is meaningless without
-    knowing which tenant "leakage" is relative to -- both methods must
-    accept `ctx` so the Phase 12 adapter isn't forced into a breaking
-    signature change later. Matches the pattern `AuthorizationPort.is_allowed`
-    and `CheckConsent.execute` already use (design.md §5/§11)."""
     inbound_params = list(inspect.signature(ClinicalScopePolicy.classify_inbound).parameters)
     outbound_params = list(inspect.signature(ClinicalScopePolicy.classify_outbound).parameters)
 

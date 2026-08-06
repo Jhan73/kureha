@@ -1,6 +1,3 @@
-"""Task 2.9: RLS isolation for consent_policies/consents (migration
-613f9ea3526f, same tenant-wide-self shape as patients)."""
-
 import sqlalchemy as sa
 
 from tests.rls.helpers import seed_consent, seed_consent_policy, seed_patient, seed_site, seed_tenant, set_app_context
@@ -41,11 +38,6 @@ async def test_consents_staff_sees_only_own_site(rls_conn) -> None:
 
 
 async def test_consents_staff_can_write_and_see_null_site_consent(rls_conn) -> None:
-    """Fixed in review: `consents_staff`'s implicit WITH CHECK previously
-    required `site_id` to exactly match `app.site_id`, rejecting a legitimate
-    INSERT of a site-less consent (`consents.site_id` is nullable, same class
-    of gap as `patients_staff` -- see migration docstring point 8). Staff at
-    ANY site in the tenant can now see/write a site-less consent."""
     tenant_id = await seed_tenant(rls_conn)
     site_id = await seed_site(rls_conn, tenant_id)
     await seed_consent_policy(rls_conn, tenant_id)

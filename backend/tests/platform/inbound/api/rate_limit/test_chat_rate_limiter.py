@@ -1,9 +1,3 @@
-"""Task 5.3b: `ChatRateLimiter` -- facade combining the per-instance
-token-bucket (abuse/cadence) with the LLM daily budget cap (cost backstop),
-design.md §19's full chat rate-limiting story in one call site for a future
-Phase 12 chat endpoint. Fakes for both collaborators -- their own real
-behavior is proven by `test_token_bucket.py`/`test_llm_budget_guard.py`."""
-
 import pytest
 
 from app.platform.inbound.api.rate_limit.chat_rate_limiter import ChatRateLimiter
@@ -70,11 +64,6 @@ async def test_enforce_propagates_llm_budget_exceeded() -> None:
 
 
 async def test_record_usage_delegates_to_the_llm_budget_guard() -> None:
-    """`record_usage` (tasks.md task 12.1's rate-limiter/budget wiring): the
-    turn-end counterpart to `enforce` -- `/chat`/`/chat/stream` call this
-    once a turn completes, with the real token total `TokenUsageCallback
-    Handler` accumulated (design.md §19: "al finalizar el turno, el
-    middleware suma los tokens usados")."""
     buckets = _FakeTokenBuckets(allow=True)
     budget_guard = _FakeLlmBudgetGuard()
     limiter = ChatRateLimiter(buckets, budget_guard)

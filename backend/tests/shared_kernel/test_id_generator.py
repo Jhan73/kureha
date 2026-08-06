@@ -1,5 +1,3 @@
-"""Task 3.1: `IdGeneratorPort`/`UuidGenerator` (design.md §2.5)."""
-
 import uuid
 
 from app.shared_kernel.id_generator import UuidGenerator

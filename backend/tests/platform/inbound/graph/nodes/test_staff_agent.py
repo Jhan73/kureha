@@ -1,7 +1,3 @@
-"""Task 11.2: `staff_agent` node -- plans a `ProposedAction` via
-`StaffPlannerPort`; always `risk_level="low"` (no `RiskPolicy` rule for
-staff/shift, design.md §8.4)."""
-
 import pytest
 
 from app.platform.inbound.graph.nodes.staff_agent import make_staff_agent_node

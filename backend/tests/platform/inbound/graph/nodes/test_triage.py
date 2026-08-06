@@ -1,8 +1,3 @@
-"""Task 11.2: `triage` node -- delegates to `IntentClassifierPort` and sets
-`state.intent`. Fake classifier, no real LLM/Postgres (mirrors
-`_FakeAuthorizationPort`'s pattern, `tests/modules/governance/rbac/
-test_authorize_action.py`)."""
-
 import pytest
 
 from app.platform.inbound.graph.nodes.triage import make_triage_node

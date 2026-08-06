@@ -1,5 +1,3 @@
-"""Task 3.1: `TenantContext` is an immutable value object (design.md §2.5)."""
-
 import pytest
 
 from app.shared_kernel.tenant_context import TenantContext

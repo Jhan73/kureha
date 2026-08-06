@@ -1,7 +1,3 @@
-"""Task 11.2: `consent_gate` node -- delegates to `CheckConsent` for
-patient-touching intents; bypasses to `consent_ok=True` for `staff`/`shift`
-(design.md §8.3's note right after the edges diagram)."""
-
 import pytest
 
 from app.modules.governance.consent.domain.consent_policy import ConsentCheckResult
@@ -97,9 +93,6 @@ async def test_schedule_intent_with_outdated_consent_denies() -> None:
 
 @pytest.mark.asyncio
 async def test_patient_touching_intent_without_a_patient_id_denies_without_calling_check_consent() -> None:
-    """Deny-by-default when `request_ctx.patient_id` is unresolved -- see
-    the node's own module docstring for the flagged staff-copilot-on-behalf-
-    of-a-patient gap this guards against."""
     check_consent = _FakeCheckConsent(result=ConsentCheckResult.CURRENT)
     node = make_consent_gate_node(check_consent)
 

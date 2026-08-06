@@ -39,9 +39,6 @@ function PortalContent() {
   );
 }
 
-// Authenticated landing page: the first real consumer of `RequireAuth`, now
-// linking to the self-service appointment views built in tasks.md 14.2. The
-// embedded chat (14.3+) lands here in a later batch.
 export default function PortalPage() {
   return (
     <RequireAuth>

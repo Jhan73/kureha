@@ -1,17 +1,3 @@
-"""`Logout` use case (design.md §17.4, tasks.md task 4.5, spec
-`session-management` -> "User logs out"): revokes the caller's own session.
-Self-service -- not RBAC-gated (logging yourself out is not a privileged
-action; contrast with `RevokeAllSessionsForUser`, the admin equivalent,
-which does go through `AuthorizeAction`).
-
-Takes a raw `refresh_token: str`, NOT a `session_id` (fix, confirmed review
-finding): nothing in this module ever hands a client a `user_sessions.id`
--- `Login`/`RefreshToken` only ever return an opaque refresh token string, so
-a `session_id`-based signature described an id no real caller could ever
-have. Hashes the presented token and looks the session up via
-`SessionStorePort.find_by_hash`, mirroring `RefreshToken.execute` exactly
-(same hashing helper, same lookup port method)."""
-
 from app.modules.identity.application.ports.driven.session_store import SessionStorePort
 from app.modules.identity.domain.errors import SessionNotFoundError
 from app.modules.identity.domain.refresh_token_hash import hash_refresh_token

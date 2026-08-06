@@ -1,5 +1,3 @@
-"""Task 3.1: `ClockPort`/`SystemClock` (design.md §2.5)."""
-
 from datetime import timezone
 
 from app.shared_kernel.clock import SystemClock

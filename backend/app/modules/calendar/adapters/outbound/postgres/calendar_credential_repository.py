@@ -1,20 +1,3 @@
-"""`PostgresCalendarCredentialRepository`: `CalendarCredentialRepositoryPort`
-adapter over `calendar_credentials` (design.md §4.4/§7.3/§7.4, migration
-00d985a7bfa5).
-
-Takes an already-open `AsyncConnection` rather than owning an engine, same
-pattern every other postgres adapter in this codebase follows. The
-composition root (tasks.md task 10.2) MUST construct this against a
-connection with `app.role='patient'` + matching `app.patient_id` already
-set via `SET LOCAL` -- see the port's own module docstring for why (the
-ONLY policy on this table, `calendar_credentials_self`, requires exactly
-that).
-
-`save` upserts on `(tenant_id, patient_id)` (`UNIQUE`, migration
-00d985a7bfa5) -- a patient reconnecting replaces the previous ciphertext AND
-clears any prior `revoked_at` (reconnecting after a revoke is a normal,
-expected flow, not an error)."""
-
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
@@ -68,14 +51,7 @@ class PostgresCalendarCredentialRepository:
         return self._row_to_record(row)
 
     async def revoke(self, tenant_id: str, patient_id: str) -> None:
-        # Task 10.4 fix (kureha-mvp PR9 verify finding): design.md §7.3 --
-        # "En rollback/desactivacion: revoked_at + borrado del token cifrado"
-        # -- and this port's own docstring both require the ciphertext
-        # itself to be erased, not just `revoked_at` flipped. The three
-        # `bytea` columns are `NOT NULL` (migration 00d985a7bfa5), so
-        # "borrado" means zero-length bytes here, not `NULL` -- a
-        # subsequent `save()` (reconnect) overwrites them with a fresh
-        # secret regardless, same as it already clears `revoked_at`.
+        # Clear ciphertext (NOT NULL bytea → empty bytes) plus revoked_at.
         await self._conn.execute(
             text(
                 "UPDATE calendar_credentials SET revoked_at = now(), "

@@ -1,5 +1,3 @@
-"""Task 5.3: rate-limiting error hierarchy (design.md §19)."""
-
 from app.platform.inbound.api.rate_limit.errors import LlmBudgetExceededError, RateLimitExceededError
 from app.shared_kernel.errors import DomainError
 

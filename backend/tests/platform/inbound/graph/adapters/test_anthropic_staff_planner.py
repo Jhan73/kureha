@@ -1,9 +1,3 @@
-"""tasks.md task 12.7 (PR 12 batch 2): `AnthropicStaffPlanner`, the real
-`StaffPlannerPort` adapter `staff_agent` consumes (design.md §8.10).
-Reasoner tier. Same ID-resolution-gap posture as `AnthropicSchedulingPlanner`
--- see that module's own docstring for the full explanation; not repeated
-here at length."""
-
 import pytest
 
 from app.platform.inbound.graph.adapters.anthropic_staff_planner import AnthropicStaffPlanner
@@ -134,10 +128,6 @@ async def test_shift_create_kwargs_parse_starts_at_and_ends_at_into_datetimes() 
 
 
 async def test_shift_kwargs_drop_an_unparseable_datetime_instead_of_raising() -> None:
-    """A malformed ISO string from the model is a data-shape problem, not an
-    infra failure -- dropping the key (same "omit, never fabricate" posture
-    as every other unresolved ID field) is safer than crashing before this
-    node even reaches `rbac_gate`."""
     extraction = _ShiftExtraction(
         action="shift:create", staff_member_id="staff-1", starts_at="not-a-date", summary="Crea un turno."
     )

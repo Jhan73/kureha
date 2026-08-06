@@ -1,22 +1,3 @@
-"""`RescheduleAppointment` use case (design.md §5.3/§9, tasks.md task 7.3):
-`authorize(ctx, action)` first, load the existing appointment and confirm it
-is still active, then release its current slot and reserve the new one,
-persist the move, and audit -- same "same transaction" contract as
-`ScheduleAppointment` (ADR-3).
-
-Does NOT invoke `RiskPolicy.evaluate_reschedule` -- see
-`ScheduleAppointment`'s docstring: HITL routing on a professional-change
-`risk_level` is the future graph's job (tasks.md Phase 11), resolved BEFORE
-this use case runs. `new_availability_id`'s slot may carry a different
-`professional_id` than the original appointment; that is a legitimate,
-already-approved outcome by the time this executes.
-
-Checks `StaffStatusPort.is_assignable` against the NEW slot's professional
-(tasks.md task 8.4, spec `staff-registry` -> "Deactivated staff cannot be
-scheduled") once the new slot is confirmed available, and BEFORE either
-availability mutation (release the old slot / reserve the new one) --
-mirrors `ScheduleAppointment`'s "no mutation before this check" contract."""
-
 from app.modules.governance.audit.application.ports.driven.audit_log import AuditLogPort
 from app.modules.governance.audit.domain.audit_entry import AuditAction, AuditActorType, AuditEntry
 from app.modules.governance.rbac.application.use_cases.authorize_action import AuthorizeAction

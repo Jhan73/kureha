@@ -1,8 +1,3 @@
-"""Task 11.5: `calendar_sync` node -- post-commit, best-effort, only for
-intent in {schedule, reschedule, cancel} AND a connected calendar. Never
-lets a sync failure fail the turn (`calendar_sync_status` captures the
-outcome, no exception escapes this node)."""
-
 from datetime import datetime, timezone
 
 import pytest
@@ -90,8 +85,6 @@ async def test_syncs_successfully_for_a_staff_actor_after_schedule() -> None:
 
 @pytest.mark.asyncio
 async def test_emits_an_ungated_status_event_when_a_sync_is_attempted(monkeypatch) -> None:
-    """`action=None` -- calendar sync is an administrative post-commit
-    step, not itself an RBAC-gated action a caller either has or lacks."""
     import app.platform.inbound.graph.nodes.calendar_sync as module
 
     calls: list[dict] = []
@@ -141,9 +134,6 @@ async def test_not_applicable_when_outcome_missing() -> None:
 
 @pytest.mark.asyncio
 async def test_flagged_gap_patient_actor_has_no_staff_base_role_for_the_sync_write() -> None:
-    """Patient self-service (`ctx.role == 'patient'`) has no staff role to
-    satisfy `calendar_sync`'s staff-only RLS policy -- see this node's own
-    docstring for the flagged, unresolved gap."""
     node = make_calendar_sync_node(object(), appointment_snapshot=None, sync_use_case_factory=None)
     state = _state(intent="schedule", role="patient", outcome=ActionOutcome(success=True, result_id="appt-1"))
 

@@ -1,23 +1,3 @@
-"""`ScheduleAppointment` use case (design.md §5.3/§9, tasks.md task 7.3):
-`authorize(ctx, action)` first, then reserve the requested slot, create the
-appointment, and audit -- all in the caller's already-open transaction
-(design.md §9: "Formulario web ... SI por AuthorizeAction + consent + audit";
-ADR-3: audit in the same transaction as the action). Consent is checked
-upstream by the caller (governance/consent's `CheckConsent`, design.md §11)
--- not repeated here, mirroring how `AuthorizeAction` itself stays a single
-concern.
-
-Does NOT invoke `RiskPolicy` -- HITL routing on `risk_level` is the future
-`scheduling_agent`/`rbac_gate` graph nodes' job (tasks.md Phase 11), applied
-BEFORE this use case runs. By the time `ScheduleAppointment.execute` is
-called, any required approval has already happened.
-
-Checks `StaffStatusPort.is_assignable` right after `authorize()` and before
-touching either repository (tasks.md task 8.4, spec `staff-registry` ->
-"Deactivated staff cannot be scheduled") -- fails fast on the cheapest
-precondition, and guarantees no availability/appointment mutation is ever
-attempted for a professional the staff module has deactivated."""
-
 from app.modules.governance.audit.application.ports.driven.audit_log import AuditLogPort
 from app.modules.governance.audit.domain.audit_entry import AuditAction, AuditActorType, AuditEntry
 from app.modules.governance.rbac.application.use_cases.authorize_action import AuthorizeAction

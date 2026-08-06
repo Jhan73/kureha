@@ -1,15 +1,3 @@
-"""Task 2.9: RLS isolation for audit_logs (migration 613f9ea3526f).
-
-INSERT is open to any role within the tenant (every use case must be able
-to write its own trail entry, design.md §5.3's `AuthorizeAction` denial path
-included); SELECT is `role='admin'` (full visibility) OR the row's own
-`actor_id` (self-authored rows) -- see migration docstring point 7: Postgres
-requires an `INSERT ... RETURNING` row to also satisfy a SELECT policy, so a
-plain admin-only SELECT policy would break every non-admin `RETURNING id`
-insert. UPDATE/DELETE/TRUNCATE stay blocked by the append-only trigger
-(776b456050fe) regardless of role.
-"""
-
 import sqlalchemy as sa
 from sqlalchemy.exc import DBAPIError
 
@@ -30,9 +18,6 @@ async def _insert_audit_row(conn, tenant_id, actor_id, *, action="appointment.cr
 
 
 async def test_audit_logs_insert_with_returning_allowed_for_non_admin_actor(rls_conn) -> None:
-    """Regression test for the RLS+RETURNING gotcha (migration docstring
-    point 7): a non-admin actor must be able to `INSERT ... RETURNING id`
-    their own audit entry."""
     tenant_id = await seed_tenant(rls_conn)
     actor_id = "11111111-1111-1111-1111-111111111111"
 
@@ -42,11 +27,6 @@ async def test_audit_logs_insert_with_returning_allowed_for_non_admin_actor(rls_
 
 
 async def test_audit_logs_system_actor_insert_with_returning_allowed_for_non_admin(rls_conn) -> None:
-    """Fixed in review: `audit_logs_actor_select` previously only matched
-    `actor_id = app.user_id`, so a system-authored row (`actor_type='system'`,
-    `actor_id=NULL` -- both schema-legal, 776b456050fe) satisfied neither
-    that policy nor `audit_logs_admin_select`, hitting the same
-    RLS+RETURNING gotcha point 7 exists to fix, just for a NULL actor."""
     tenant_id = await seed_tenant(rls_conn)
 
     await set_app_context(rls_conn, tenant_id=tenant_id, role="reception")

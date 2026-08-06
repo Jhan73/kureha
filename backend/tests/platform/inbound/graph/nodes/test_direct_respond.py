@@ -1,7 +1,3 @@
-"""Task 11.5: `direct_respond` node -- delegates to `DirectResponsePort`,
-sets `response_text`. Basic/structural only, full Tony identity is task
-12.5 (out of scope here)."""
-
 import pytest
 
 from app.platform.inbound.graph.nodes.direct_respond import make_direct_respond_node

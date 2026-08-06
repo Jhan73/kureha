@@ -1,7 +1,3 @@
-"""Task 4.4: `TTLRotationReplayCache` -- production `RotationReplayCachePort`
-impl, in-process `cachetools.TTLCache` (see that port's docstring for the
-multi-instance limitation this accepts)."""
-
 import time
 
 from app.modules.identity.adapters.outbound.tokens.ttl_rotation_replay_cache import TTLRotationReplayCache
@@ -30,10 +26,6 @@ def test_entries_expire_after_the_configured_ttl() -> None:
 
 
 def test_a_hash_never_returns_a_different_hashs_cached_pair() -> None:
-    """Task 13.2: no `tenant_id` prefix on this cache's key (see the
-    adapter's own module docstring for why) -- what actually matters is
-    that a lookup by one hash never returns another hash's cached rotation
-    result, proven directly rather than assumed from key equality."""
     cache = TTLRotationReplayCache(ttl_seconds=30, maxsize=100)
     cache.set("hash-a", access_token="access-a", refresh_token="refresh-a")
     cache.set("hash-b", access_token="access-b", refresh_token="refresh-b")

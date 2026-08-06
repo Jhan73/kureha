@@ -1,7 +1,3 @@
-"""Task 8.2: `DeactivateStaff` use case -- `authorize` first, load the
-existing staff member, deactivate (status flip, never delete), and audit.
-Fakes only, no DB."""
-
 from datetime import datetime, timezone
 
 import pytest

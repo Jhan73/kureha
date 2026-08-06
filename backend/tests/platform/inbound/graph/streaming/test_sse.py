@@ -1,18 +1,3 @@
-"""`format_sse_event` (design.md §8.5, tasks.md task 12.1): the exact
-Server-Sent Events wire shape design.md's own example literal shows:
-
-```
-event: status
-data: {"phase":"checking_availability","label":"Consultando disponibilidad"}
-
-event: token
-data: {"delta":"Tengo estos horarios "}
-```
-
-i.e. `event: {type}\ndata: {json}\n\n` -- the trailing blank line is the SSE
-frame terminator every conforming client (`fetch`+`ReadableStream`, design.md
-§8.5) needs to detect one complete event."""
-
 import json
 
 from app.platform.inbound.graph.streaming.sse import format_sse_event
@@ -43,10 +28,6 @@ def test_format_sse_event_ends_with_a_blank_line_terminator() -> None:
 
 
 def test_format_sse_event_serializes_non_json_native_values_via_str_fallback() -> None:
-    """`correlation_id`/etc are always plain strings in this codebase's own
-    envelope shapes, but `default=str` is a defensive fallback -- never let
-    a genuinely non-serializable value (e.g. an exception instance
-    accidentally passed through) crash SSE formatting mid-stream."""
 
     class _Weird:
         def __str__(self) -> str:

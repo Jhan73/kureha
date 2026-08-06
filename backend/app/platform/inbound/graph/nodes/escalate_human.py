@@ -1,22 +1,3 @@
-"""`escalate_human` node (design.md §8.2/§8.3, tasks.md task 11.5): the
-common exit node for every "hand this off to a human/staff member" edge
-(`clinical_scope_validator` scope_ok=False, `consent_gate` consent_ok=False,
-`resolve_toolset`'s `route_by_intent` unknown branch, `hitl_approval`
-rejected, `response_guard` response_scope_ok=False). Audits
-`AuditAction.SCOPE_ESCALATE` (already defined) and sets a curated
-`response_text` telling the user their request is being escalated.
-
-**`reason` is a best-effort, defensive READ of whichever upstream signal is
-already False/set on `state` -- this node does not know, structurally,
-WHICH edge routed it here** (a node only sees `state`, never "which edge
-fired"; LangGraph gives no such introspection to a node function). Checked
-in a fixed precedence order (scope -> consent -> hitl rejection -> response
-scope -> unknown intent -> generic fallback) since more than one signal
-could theoretically be simultaneously false depending on stale checkpoint
-data -- the order does not change behavior observably (the audited `reason`
-is diagnostic-only, never shown to the user), it only makes the diagnostic
-text deterministic rather than dict-iteration-order-dependent."""
-
 from app.modules.governance.audit.application.ports.driven.audit_log import AuditLogPort
 from app.modules.governance.audit.domain.audit_entry import AuditAction, AuditActorType, AuditEntry
 from app.platform.inbound.graph.state import KurehaState

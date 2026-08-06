@@ -1,24 +1,8 @@
-"""scheduling tables availability appointments
+"""Add availability and appointments with gist overlap exclusion.
 
-Task 2.2 (openspec/changes/kureha-mvp/tasks.md, Phase 2). Schema per
-design.md §4.1. Anti double-booking is enforced by Postgres itself via
-`EXCLUDE USING gist`, backed by the `btree_gist` extension already created
-in `infra/postgres/init/01_extensions.sql` (extensions require superuser
-privileges the migration-time app_user role may not have on RDS -- see that
-file's own comment -- so they are never `CREATE EXTENSION`'d from a
-migration).
-
-RLS is deferred to task 2.9, same as migration 8fc0dc6f958d.
-
-NOTE (review fix on top of design.md's literal SQL, flagged not silently
-applied -- see apply-progress): `site_id` on both tables is now a composite
-FK `(tenant_id, site_id) REFERENCES sites(tenant_id, id)` instead of a bare
-`REFERENCES sites(id)`, so a site belonging to a different tenant can no
-longer be assigned (same tightening as `8fc0dc6f958d`'s `professionals`/
-`patients`/`users`). `appointments` also gets `CHECK (ends_at > starts_at)`,
-matching `availability`'s existing check -- design.md's sketch omitted it,
-letting a zero-length appointment silently bypass the `EXCLUDE` constraint
-(an empty `tstzrange` never overlaps anything).
+Requires btree_gist (infra/postgres/init). Composite FK for tenant+site
+integrity; appointments CHECK (ends_at > starts_at) so empty ranges cannot
+bypass EXCLUDE.
 
 Revision ID: 3505dc8ce3ad
 Revises: 8fc0dc6f958d

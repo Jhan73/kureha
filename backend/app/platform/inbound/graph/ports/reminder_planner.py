@@ -1,8 +1,3 @@
-"""`ReminderPlannerPort`: the seam `reminders_agent` (tasks.md task 11.2,
-design.md §8.2/§8.10) needs to resolve WHICH appointment a `reminder` intent
-refers to. No adapter exists yet -- same seam precedent as
-`IntentClassifierPort`/`SchedulingPlannerPort` (this package)."""
-
 from dataclasses import dataclass
 from typing import Protocol
 

@@ -94,7 +94,7 @@ describe("AuthProvider", () => {
     expect(window.localStorage.getItem("kureha.refresh_token")).toBe("refresh-1");
   });
 
-  it("login() resolves with the freshly authenticated user (tasks.md 15.1: lets a caller act on the resolved role immediately, no stale-closure re-render needed)", async () => {
+  it("login() resolves with the authenticated user so a caller can act on role immediately", async () => {
     vi.mocked(apiLogin).mockResolvedValueOnce(tokens);
     let resolvedUser: { userId: string; role: string } | null = null;
 

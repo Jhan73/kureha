@@ -1,7 +1,3 @@
-"""tasks.md task 12.7 (PR 12 batch 2): `AnthropicReminderPlanner`, the real
-`ReminderPlannerPort` adapter `reminders_agent` consumes (design.md §8.10:
-"Tarea simple: generar texto de recordatorio parametrico"). Fast tier."""
-
 import pytest
 
 from app.platform.inbound.graph.adapters.anthropic_reminder_planner import AnthropicReminderPlanner
@@ -49,11 +45,6 @@ async def test_plan_returns_the_extracted_appointment_id_and_summary() -> None:
 
 
 async def test_plan_returns_an_empty_string_id_never_none_or_a_fabricated_id_when_unresolved() -> None:
-    """Free conversational text ("my Tuesday appointment") gives the model no
-    real way to resolve a UUID -- `ReminderPlan.appointment_id: str` has no
-    `| None` in its own type, so this must be a type-correct, OBVIOUSLY
-    invalid placeholder (`""`), never a plausible-looking fabricated id that
-    could silently match the wrong appointment."""
     llm = _FakeChatModel(_Extraction(appointment_id=None, summary="Recordatorio para tu proxima cita."))
     planner = AnthropicReminderPlanner(llm)
 

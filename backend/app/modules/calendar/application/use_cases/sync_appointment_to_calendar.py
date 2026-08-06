@@ -1,34 +1,3 @@
-"""`SyncAppointmentToCalendar` use case (design.md §7.2/§7.6, ADR-11,
-tasks.md task 9.4): the best-effort, NON-transactional mirror of an
-appointment mutation into Google Calendar. Callers (a future Phase 10
-orchestrator/graph `calendar_sync` node, not built) invoke this AFTER the
-appointment's own transaction (create/reschedule/cancel + its audit entry)
-has already committed -- this use case's own failure MUST NEVER roll back or
-block that already-confirmed appointment (design.md §7.2). Every branch
-below returns a `CalendarSyncRecord`, NEVER raises for a Google-side or
-"no credential" failure -- only a genuine programming error (a port/repo
-bug) would propagate out of `execute`.
-
-**Composition-root RLS gap, flagged not silently decided:** this use case
-reads `calendar_credentials` (patient-self-only RLS policy,
-`app.role='patient'` + matching `app.patient_id`) and writes `calendar_sync`
-(staff-only RLS policy, `app.role IN ('reception','professional','admin')`)
-in the SAME logical flow. No single `app.role` value satisfies both
-policies at once. The Phase 10 composition root (tasks.md task 10.2, not
-built) MUST re-`SET LOCAL app.role`/`app.patient_id` on the connection
-BETWEEN the credential read and the calendar_sync write (safe within the
-same transaction -- see `tests/rls/helpers.py`'s own docstring: "Re-calling
-set_app_context with a different role later in the SAME transaction is
-safe and expected"). This use case's own tests are fakes-only and do not
-exercise that constraint; the Postgres adapters' own rls_conn tests set the
-correct role explicitly for each one in isolation.
-
-**"No credential"/"revoked" are terminal, bounded failures, not exceptions**
-(spec `google-calendar-sync` -> "Patient revokes Google access": "MUST NOT
-be retried indefinitely, and MUST NOT surface as a blocking error") -- they
-still go through `mark_failed`, so the retry job's `attempts` cap (task 9.5)
-applies uniformly regardless of failure cause."""
-
 from datetime import datetime
 from enum import Enum
 

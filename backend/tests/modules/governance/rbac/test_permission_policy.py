@@ -1,6 +1,3 @@
-"""Task 3.5: `PermissionPolicy` -- more-specific-wins precedence resolution
-(design.md §5.2). Pure logic, no IO."""
-
 from app.modules.governance.rbac.domain.permission import PermissionPolicy
 
 

@@ -1,9 +1,3 @@
-"""`DeactivateStaff` use case (design.md §5.3/§6, tasks.md task 8.2):
-`authorize(ctx, action)` first, load the existing staff member, deactivate
-(a status flip -- `StaffRepositoryPort.deactivate_staff_member` never
-deletes, design.md §6's "baja no borra historia"), and audit -- same "same
-transaction" contract as `RegisterStaff` (ADR-3)."""
-
 from app.modules.governance.audit.application.ports.driven.audit_log import AuditLogPort
 from app.modules.governance.audit.domain.audit_entry import AuditAction, AuditActorType, AuditEntry
 from app.modules.governance.rbac.application.use_cases.authorize_action import AuthorizeAction

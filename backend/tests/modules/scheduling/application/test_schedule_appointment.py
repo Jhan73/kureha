@@ -1,7 +1,3 @@
-"""Task 7.3: `ScheduleAppointment` use case -- `authorize(ctx, action)` first
-(design.md §5.3), then reserve the slot, create the appointment, and audit
-in that order. Fakes only, no DB."""
-
 from datetime import datetime, timezone
 
 import pytest
@@ -186,9 +182,6 @@ async def test_unavailable_slot_raises_slot_unavailable() -> None:
 
 
 async def test_staff_not_assignable_denies_before_any_mutation() -> None:
-    """Spec `staff-registry` -> "Deactivated staff cannot be scheduled":
-    checked BEFORE the slot is reserved or the appointment created (tasks.md
-    task 8.4) -- neither repository must be touched on this deny."""
     authorization = _FakeAuthorizationPort(allowed=True)
     availability = _FakeAvailabilityRepository(slot=_available_slot())
     scheduling = _FakeSchedulingRepository()

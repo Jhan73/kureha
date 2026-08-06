@@ -1,11 +1,3 @@
-"""Task 2.9: RLS isolation for sites/professionals/users/patients
-(design.md §4.2, migration 613f9ea3526f).
-
-Every test runs through `rls_conn` (app_runtime -- non-superuser,
-NOBYPASSRLS), never `db_conn` (app_user, the bootstrap superuser that
-unconditionally bypasses RLS -- see tests/rls/test_app_runtime_role.py).
-"""
-
 import pytest
 import sqlalchemy as sa
 
@@ -134,11 +126,6 @@ async def test_users_professional_cannot_see_other_users(rls_conn) -> None:
 
 
 async def test_patients_staff_can_write_and_see_null_site_patient(rls_conn) -> None:
-    """Fixed in review: `patients_staff`'s implicit WITH CHECK previously
-    required `site_id` to exactly match `app.site_id`, rejecting a legitimate
-    INSERT of a patient with no registration site (`patients.site_id` is
-    nullable per design.md §4.1). Staff at ANY site in the tenant can now
-    see/write a site-less patient."""
     tenant_id = await seed_tenant(rls_conn)
     site_id = await seed_site(rls_conn, tenant_id)
 
@@ -169,9 +156,6 @@ async def test_patients_staff_sees_only_own_site(rls_conn) -> None:
 
 
 async def test_patients_self_sees_only_own_record_regardless_of_site(rls_conn) -> None:
-    """design.md §4.1: patient identity is tenant-wide -- a patient registered
-    at site A must see their own record even scoped through a request whose
-    `app.site_id` differs (the patient policy does not check site_id)."""
     tenant_id = await seed_tenant(rls_conn)
     site_a = await seed_site(rls_conn, tenant_id, name="Site A")
     site_b = await seed_site(rls_conn, tenant_id, name="Site B")

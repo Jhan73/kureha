@@ -1,10 +1,3 @@
-"""`CreateShift` use case (design.md §5.3/§6, tasks.md task 8.2):
-`authorize(ctx, action)` first, confirm the target staff member exists and is
-currently assignable (`StaffPolicy.is_assignable` -- design.md §6/spec
-`staff-registry` "Deactivated staff cannot be scheduled"), then create the
-shift and audit. The DB's `EXCLUDE USING gist` (design.md §4.4) remains the
-concurrency-safe floor for overlap -- see `PostgresShiftRepository`."""
-
 from datetime import datetime
 
 from app.modules.governance.audit.application.ports.driven.audit_log import AuditLogPort

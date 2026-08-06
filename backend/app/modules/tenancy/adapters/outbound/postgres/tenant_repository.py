@@ -1,14 +1,3 @@
-"""`PostgresTenantRepository`: `TenantRepositoryPort` adapter over `tenants`
-(design.md §4.1, migration 8fc0dc6f958d).
-
-Takes an already-open `AsyncConnection` rather than owning an engine, same
-pattern every other postgres adapter in this codebase follows. `tenants` has
-no RLS (migration 613f9ea3526f), so either `app.db.engine` or
-`app.db.runtime_engine` is safe here -- the composition root (tasks.md task
-10.2) may wire this against either, depending on whether the caller already
-has a request-scoped connection or needs a pre-auth one (mirrors
-`PostgresUserDirectory`'s elevated-connection note)."""
-
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 

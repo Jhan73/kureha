@@ -1,20 +1,7 @@
-"""core identity tables tenants sites users professionals patients
+"""Add tenants, sites, professionals, patients, and users tables.
 
-Task 2.1 (openspec/changes/kureha-mvp/tasks.md, Phase 2). Schema per
-design.md §4.1. RLS (§4.2) is deliberately NOT enabled here -- it is applied
-across every tenant table in a single sweep by task 2.9 (next work unit),
-after tables 2.5-2.8 also exist.
-
-`patients` identity is tenant-wide, not site-wide (design.md §4.1): the
-same document_number must resolve to one patient record across every site of
-a tenant, so uniqueness is `UNIQUE(tenant_id, document_number)`, not scoped
-by `site_id`. `site_id` on `patients` is the (nullable) registration site,
-informative only.
-
-Raw SQL (`op.execute`) is used throughout instead of SQLAlchemy Core table
-builders: this project has no declarative metadata (see migrations/env.py
--- SQLAlchemy Core, not the ORM, per design.md §1) and the CHECK/role
-constraints below are most directly expressed as SQL.
+patients are tenant-wide (UNIQUE on tenant_id+document_number); site_id is
+nullable registration site only. Composite FKs use UNIQUE(tenant_id, id).
 
 Revision ID: 8fc0dc6f958d
 Revises:
@@ -45,15 +32,7 @@ def upgrade() -> None:
         """
     )
 
-    # NOTE (review fix on top of design.md's literal SQL, flagged not silently
-    # applied -- see apply-progress): design.md §4.1 FKs `site_id`/`patient_id`/
-    # `professional_id` as single-column references (or, for users.patient_id/
-    # professional_id, no FK at all). That leaves tenant_id/site_id free to
-    # disagree (a row could reference a site/patient/professional belonging to
-    # a different tenant), which the RLS layer (task 2.9) would then silently
-    # trust. `sites`/`patients`/`professionals` each get a `UNIQUE(tenant_id, id)`
-    # so every FK from another table can be the composite `(tenant_id, x_id)`
-    # form instead, tightening design.md's sketch rather than deviating from it.
+    # UNIQUE(tenant_id, id) enables composite FKs for tenant+site integrity.
     op.execute(
         """
         CREATE TABLE sites (

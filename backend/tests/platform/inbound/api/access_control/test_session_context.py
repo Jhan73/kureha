@@ -1,14 +1,3 @@
-"""Task 5.1: `set_session_context` -- emits the `SET LOCAL app.*` GUCs
-design.md §4.2 lists (`tenant_id`/`site_id`/`role`/`user_id`/`patient_id`/
-`professional_id`), from a resolved `LiveActor`. Same nil-UUID-sentinel
-pattern as `tests/rls/helpers.py::set_app_context` (that helper's own
-docstring: "Phase 5's access-control middleware needs the same treatment
-when it starts emitting these GUCs for real") -- every GUC must always be
-set to SOMETHING, because Postgres's `current_setting('app.x')` raises
-`unrecognized configuration parameter` if a GUC was NEVER set at all in the
-session, and RLS policies evaluate every permissive policy for a command
-(including ones for roles the actor doesn't have)."""
-
 import sqlalchemy as sa
 
 from app.platform.inbound.api.access_control.live_actor import LiveActor

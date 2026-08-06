@@ -1,22 +1,3 @@
-"""`RetryPendingCalendarSyncs` (design.md §7.5, tasks.md task 9.5): the
-bounded retry/reconciliation job over `pending`/`failed` `calendar_sync`
-rows. Composes `RetryBackoffPolicy` (domain, pure) for the backoff/attempts-
-cap decision and delegates the actual re-attempt to `SyncAppointmentToCalendar`
-(application/use_cases/sync_appointment_to_calendar.py) -- this job's own
-job is orchestration (which rows are due, refresh their appointment data),
-not re-implementing the sync/mark-result logic a second time.
-
-`AppointmentSnapshotPort` exists because this job runs independently, later,
-with only a `calendar_sync` row's `appointment_id` to start from -- unlike
-`SyncAppointmentToCalendar`'s normal post-commit call, which receives fresh
-appointment data directly from its caller (see that port's docstring).
-
-If the target appointment no longer exists at all (`get_snapshot` returns
-`None` -- should not happen in practice given `appointments` has no hard
-delete, but defensive), this job marks the row permanently `failed` via
-`mark_failed` directly, WITHOUT calling `SyncAppointmentToCalendar` (nothing
-meaningful to sync)."""
-
 from app.modules.calendar.application.ports.driven.appointment_snapshot import AppointmentSnapshotPort
 from app.modules.calendar.application.ports.driven.calendar_sync_repository import CalendarSyncRepositoryPort
 from app.modules.calendar.application.use_cases.sync_appointment_to_calendar import SyncAppointmentToCalendar

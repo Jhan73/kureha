@@ -1,11 +1,3 @@
-"""Task 9.2: `AesGcmVault` -- envelope AES-256-GCM encryption with the KEK
-fetched from Secrets Manager (design.md §7.4/§22.6, ADR-24). Real network
-call against LocalStack -- no mocking of boto3/cryptography, same
-"prefer real infra over doubles" spirit as `rls_conn`'s tests against real
-Postgres. Requires LocalStack running with the `kureha/dev/kek` secret
-already provisioned (infra/localstack/init/01_secrets.sh) and
-`AWS_ENDPOINT_URL` pointed at it."""
-
 import dataclasses
 
 import pytest

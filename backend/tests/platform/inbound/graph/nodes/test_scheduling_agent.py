@@ -1,11 +1,3 @@
-"""Task 11.2: `scheduling_agent` node -- plans a `ProposedAction` via
-`SchedulingPlannerPort` and invokes `RiskPolicy` (design.md §8.4 point 1)
-to set `state.risk_level`.
-
-Task 11.4 adds `build_scheduling_agent_node` -- the composition-time helper
-that resolves `action_permissions.bulk_cancel_threshold` live via
-`ActionRiskPort` before constructing the node (below)."""
-
 import pytest
 
 from app.modules.governance.rbac.application.ports.driven.action_risk import ActionRiskConfig
@@ -187,11 +179,6 @@ async def test_build_scheduling_agent_node_resolves_the_live_threshold_for_appoi
 
 @pytest.mark.asyncio
 async def test_emits_a_status_event_scoped_to_the_planned_action(monkeypatch) -> None:
-    """Task 12.2 (design.md §8.5/§8.7): status events are scoped to
-    `allowed_actions` -- emitted once the planner's `action` is known,
-    checked against `state.allowed_actions` (already resolved by
-    `resolve_toolset`, upstream of this node per `build_graph.py`'s own
-    edges)."""
     import app.platform.inbound.graph.nodes.scheduling_agent as module
 
     calls: list[dict] = []

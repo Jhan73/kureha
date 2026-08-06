@@ -1,7 +1,3 @@
-"""Task 3.2: `ConsentPolicy` domain rule -- resolves the three outcomes
-design.md §11 requires (current/missing/outdated) from the tenant's current
-policy version and the patient's latest consent row. Pure logic, no IO."""
-
 from datetime import datetime, timezone
 
 from app.modules.governance.consent.domain.consent import Consent
@@ -52,9 +48,6 @@ def test_accepted_consent_matching_the_current_version_is_current() -> None:
 
 
 def test_no_published_current_policy_with_an_accepted_consent_is_outdated() -> None:
-    """No policy is marked `is_current` for the tenant (operational gap) --
-    we cannot confirm the patient accepted whatever the current text is, so
-    this is treated as outdated rather than silently CURRENT."""
     consent = _consent(status="accepted", policy_version="2026.1")
 
     assert ConsentPolicy.evaluate(current_version=None, consent=consent) == ConsentCheckResult.OUTDATED

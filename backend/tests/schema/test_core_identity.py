@@ -1,11 +1,3 @@
-"""Task 2.1: tenants, sites, users, professionals, patients (design.md §4.1).
-
-`patients` identity is tenant-wide, not site-wide (design.md §4.1 rationale):
-the same document_number must be allowed to register at two different sites
-of the same tenant would be a duplicate -> UNIQUE(tenant_id, document_number),
-NOT UNIQUE(site_id, document_number).
-"""
-
 import sqlalchemy as sa
 
 from tests.schema.helpers import expect_violation, make_patient, make_professional, make_site, make_tenant
@@ -102,9 +94,6 @@ async def test_user_role_reception_needs_neither_patient_nor_professional_id(
 
 
 async def test_professional_site_id_must_belong_to_same_tenant(db_conn) -> None:
-    """Composite FK (tenant_id, site_id) -> sites(tenant_id, id): a site from
-    a different tenant must not be assignable (design.md §4.2 relies on
-    tenant_id/site_id never disagreeing)."""
     tenant_a = await make_tenant(db_conn)
     tenant_b = await make_tenant(db_conn)
     site_of_b = await make_site(db_conn, tenant_b)
@@ -129,9 +118,6 @@ async def test_patient_site_id_must_belong_to_same_tenant(db_conn) -> None:
 
 
 async def test_user_patient_id_must_belong_to_same_tenant(db_conn) -> None:
-    """users.patient_id now has a composite FK (tenant_id, patient_id) ->
-    patients(tenant_id, id): a patient from a different tenant must not be
-    assignable to a user."""
     tenant_a = await make_tenant(db_conn)
     tenant_b = await make_tenant(db_conn)
     site_a = await make_site(db_conn, tenant_a)

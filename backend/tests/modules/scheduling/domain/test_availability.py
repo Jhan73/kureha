@@ -1,6 +1,3 @@
-"""Task 7.1: `AvailabilitySlot` domain (design.md §4.1's `availability` table
-shape). Pure value object, no IO."""
-
 from datetime import datetime, timezone
 
 from app.modules.scheduling.domain.availability import AvailabilitySlot, AvailabilityStatus

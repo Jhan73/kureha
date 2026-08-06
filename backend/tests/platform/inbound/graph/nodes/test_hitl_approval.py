@@ -1,13 +1,3 @@
-"""Task 11.4: `hitl_approval` node -- LangGraph's real `interrupt()` +
-`Command(resume=...)`. `interrupt()`'s pause/resume semantics are coupled to
-the graph runtime (confirmed via LangGraph's own `interrupt`/`Command`
-mechanics, spiked interactively before writing this file), so this is
-NOT a bare function-call unit test: it compiles a minimal, THROWAWAY
-single-node graph with `MemorySaver` (LangGraph's own documented pattern
-for testing `interrupt()`) -- this is NOT `build_graph()` (tasks.md task
-11.6, batch 3), it exists only in this test file. Fake `ActionRiskPort`/
-`AuditLogPort`, mirroring `_FakeAuthorizationPort`'s precedent."""
-
 import pytest
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
@@ -137,9 +127,6 @@ async def test_hitl_approval_resumed_with_rejection_audits_hitl_reject() -> None
 
 @pytest.mark.asyncio
 async def test_hitl_approval_reads_requires_hitl_independently_of_risk_level() -> None:
-    """This node must independently know `requires_hitl` for the action,
-    since the routing condition that sent it here (task 11.6) is not
-    visible to the node itself."""
     action_risk = _FakeActionRisk(requires_hitl=True)
     audit_log = _FakeAuditLog()
     node = make_hitl_approval_node(action_risk, audit_log)

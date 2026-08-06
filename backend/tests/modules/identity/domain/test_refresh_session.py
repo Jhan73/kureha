@@ -1,5 +1,3 @@
-"""Task 4.4: `RefreshSession` -- projection of one `user_sessions` row."""
-
 from datetime import datetime, timezone
 
 from app.modules.identity.domain.refresh_session import RefreshSession

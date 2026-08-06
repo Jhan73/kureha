@@ -1,24 +1,3 @@
-"""`RefreshToken` use case (design.md §17.4, ADR-15, tasks.md task 4.4):
-validates an opaque refresh token against `user_sessions`, re-checks live
-`active` status, re-resolves the current role, rotates the refresh, and
-mints a fresh access token. Implements the 30s rotation grace period and
-reuse-detection chain-revoke described in design.md §17.4.
-
-Deliberately does NOT accept a `TenantContext` -- refreshing is, like
-`Login`, a pre-session operation: the caller presents only the opaque
-refresh token, and `tenant_id`/`user_id` are recovered from whichever
-`user_sessions` row it hashes to (see `SessionStorePort.find_by_hash`'s
-docstring for why this is a global, not tenant-scoped, lookup).
-
-**Grace period only applies to a genuine rotation replay** (security fix):
-`RefreshSession` has no revocation-cause field, so `_handle_already_rotated`
-uses `SessionStorePort.find_successor` to tell "revoked by rotation" (a
-successor row exists) apart from any other revocation cause -- logout,
-admin-revoke, or the terminal node of an earlier chain-revoke (no
-successor). A revoked token with no successor is always an ordinary
-`InvalidRefreshTokenError`, never grace-period leniency and never escalated
-to a reuse-attack chain-revoke."""
-
 from datetime import timedelta
 
 from app.modules.identity.application.ports.driven.rotation_replay_cache import RotationReplayCachePort
@@ -86,10 +65,7 @@ class RefreshToken:
 
     async def _handle_already_rotated(self, session: RefreshSession, now, *, presented_refresh_token: str) -> LoginResult:
         # `RefreshSession` has no revocation-cause field -- `revoked_at`
-        # alone cannot tell "revoked by rotation" apart from "revoked by
-        # logout/admin-revoke". A successor row (`rotated_from == this
-        # session's id`) only exists when a rotation genuinely happened, so
-        # it is the source of truth here (security fix, design.md §17.4).
+        # Successor proves rotation (vs logout/admin-revoke); required before grace.
         successor = await self._session_store.find_successor(session.id)
         if successor is None:
             # Not a rotation replay at all -- an ordinary revoked refresh
@@ -100,9 +76,7 @@ class RefreshToken:
             raise InvalidRefreshTokenError()
 
         if not SessionPolicy.is_within_rotation_grace_period(session, now=now, grace_period=self._grace_period):
-            # A genuine rotation successor exists AND the old token is being
-            # replayed past the grace window -- the actual reuse-attack
-            # signal (design.md §17.4).
+            # Rotation successor exists but replay is past grace -> reuse attack.
             await self._session_store.revoke_chain(session.id, revoked_at=now)
             raise RefreshReuseDetectedError()
 

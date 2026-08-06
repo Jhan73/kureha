@@ -1,6 +1,3 @@
-"""Task 4.4: `SessionPolicy` -- pure rules for refresh-token expiry and the
-30s rotation grace period (design.md §17.4/ADR-15). No IO."""
-
 from datetime import datetime, timedelta, timezone
 
 from app.modules.identity.domain.refresh_session import RefreshSession

@@ -1,10 +1,3 @@
-"""Task 7.5: `CachedAvailabilityRepository` -- in-process TTL cache wrapping
-`AvailabilityRepositoryPort.find_available_slots` (design.md §18), key
-`{tenant_id}:{site_id}:{resource_id}:{date}`, bounded `maxsize`. Every other
-method (`get_slot`/`reserve_slot`/`release_slot`) delegates straight through,
-uncached -- design.md §18: "NUNCA cachea" a reservation decision, only the
-day-level listing. Fakes only, no DB."""
-
 from datetime import date
 
 from app.modules.scheduling.adapters.outbound.cache.availability_cache import CachedAvailabilityRepository
@@ -86,12 +79,13 @@ async def test_cache_is_bounded_by_maxsize() -> None:
 
 class _TenantTaggedAvailabilityRepository:
     """Returns a result tagged with `tenant_id` itself, so a cross-tenant
-    cache leak is observable as a WRONG VALUE, not just an extra call --
-    the existing `test_find_available_slots_cache_key_includes_tenant_
-    site_resource_and_date` above only proves the key differs (via call
-    count); this proves the actual tenant-isolation invariant task 13.2
-    asks for: two tenants querying the identical site/resource/date never
-    read each other's cached slots."""
+     cache leak is observable as a WRONG VALUE, not just an extra call --
+     the existing `test_find_available_slots_cache_key_includes_tenant_
+     site_resource_and_date` above only proves the key differs (via call
+     count); this proves the actual tenant-isolation invariant
+     asks for: two tenants querying the identical site/resource/date never
+     read each other's cached slots.
+    """
 
     def __init__(self) -> None:
         self.find_calls: list[tuple] = []

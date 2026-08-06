@@ -1,9 +1,3 @@
-"""Task 4.6: `ConfirmAccountLink` -- links a federated subject to an
-existing password-based account, only after the caller has already obtained
-explicit confirmation (spec `user-authentication` -> "Email Verification for
-Account Linking": never a silent auto-merge on email match alone). Fake
-ports only, no DB."""
-
 from datetime import datetime, timezone
 
 import pytest

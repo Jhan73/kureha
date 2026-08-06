@@ -1,6 +1,3 @@
-"""Task 4.1-4.3: RLS isolation for user_credentials (tenant-only, same shape
-as user_sessions -- see migration 9f1c4a7b2e3d's docstring)."""
-
 import sqlalchemy as sa
 
 from tests.rls.helpers import seed_site, seed_tenant, seed_user, seed_user_credentials, set_app_context

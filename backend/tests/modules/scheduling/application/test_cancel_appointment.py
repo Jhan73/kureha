@@ -1,6 +1,3 @@
-"""Task 7.3: `CancelAppointment` use case -- `authorize` first, cancel, then
-release the freed slot and audit. Fakes only, no DB."""
-
 from datetime import datetime, timezone
 
 import pytest

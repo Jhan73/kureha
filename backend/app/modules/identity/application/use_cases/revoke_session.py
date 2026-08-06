@@ -1,13 +1,3 @@
-"""`RevokeAllSessionsForUser` use case (design.md §17.4, tasks.md task 4.5,
-spec `session-management` -> "Admin revokes a session"): revokes every
-`user_sessions` row for a target user, scoped to the acting admin's tenant,
-without touching any other user's sessions.
-
-RBAC-gated via `AuthorizeAction` (design.md §5.3: "cada mutating use case...
-comienza con authorize(ctx, action)") -- unlike `Logout` (self-service, no
-gate needed), this acts on ANOTHER user's sessions, so it is a privileged
-action behind the `session:revoke_all` action key."""
-
 from app.modules.governance.rbac.application.use_cases.authorize_action import AuthorizeAction
 from app.modules.identity.application.ports.driven.session_store import SessionStorePort
 from app.shared_kernel.clock import ClockPort

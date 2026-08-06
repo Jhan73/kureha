@@ -1,12 +1,3 @@
-"""Task 6.1: `PostgresTenantRepository` -- `TenantRepositoryPort` adapter
-over `tenants` (design.md §4.1, migration 8fc0dc6f958d).
-
-Uses `db_conn` (the `app_user`/elevated connection), NOT `rls_conn` --
-`tenants` carries no RLS (migration 613f9ea3526f), so either connection would
-technically work, but this mirrors `PostgresUserDirectory`'s test: a lookup
-that may run pre-auth (before any `app.*` GUC exists) should not depend on
-`app_runtime` being viable yet."""
-
 from tests.schema.helpers import make_tenant
 
 from app.modules.tenancy.adapters.outbound.postgres.tenant_repository import PostgresTenantRepository

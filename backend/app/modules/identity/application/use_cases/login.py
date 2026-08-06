@@ -1,22 +1,3 @@
-"""`Login` use case (design.md §17.3/§17.4, tasks.md task 4.3): resolves an
-`AuthnResult` (authn-only) to exactly one `users` row and mints a fresh
-access+refresh pair. Two entry points, `with_password`/`with_google`,
-because the federated flow has extra branches (existing-linked-account,
-account-link-required, first-time-provisioning) the password flow never
-hits (design.md §17.3).
-
-**`default_site_id` (federated, first-time-signup branch only):** deciding
-WHICH site a self-registering patient belongs to is a Tenancy/Scheduling
-policy question (tasks.md Phase 6/7 -- neither module exists yet). This use
-case does not invent that policy; it accepts an already-resolved
-`default_site_id` from its caller. Until a future phase's composition root
-supplies one, a first-time Google sign-in with no existing `users` match is
-correctly denied+audited via `UnmappedIdentityError` -- spec
-`user-authentication`'s "Unmapped identity is denied" scenario is satisfied
-either way; only the "First-time Google sign-in creates an account" scenario
-is gated on a caller providing `default_site_id`.
-"""
-
 from datetime import timedelta
 
 from app.modules.governance.audit.application.ports.driven.audit_log import AuditLogPort
@@ -50,24 +31,7 @@ class Login:
         access_token_ttl: timedelta = _DEFAULT_ACCESS_TTL,
         refresh_token_ttl: timedelta = _DEFAULT_REFRESH_TTL,
     ) -> None:
-        """`user_directory`/`session_store` need the SAME elevated,
-        pre-auth `app.db.engine` connection privilege documented on
-        `UserDirectoryPort`/`SessionStorePort` (no `app.*` GUC exists yet
-        when `Login` runs -- nothing to look up a `TenantContext` from).
-
-        `audit_log` has the SAME constraint, for the SAME reason, even
-        though `PostgresAuditLog`'s own docstring (adapters/outbound/
-        postgres/audit_log.py) generally requires `app.db.runtime_engine`
-        (RLS-scoped, GUCs already set) -- that general contract is
-        impossible to satisfy here, since `Login` writes its unmapped-
-        identity audit entry BEFORE any GUC can exist. `PostgresAuditLog`'s
-        constructor only takes a generic `AsyncConnection` (no engine
-        binding baked into the class itself), so it CAN be constructed
-        against an elevated `app.db.engine` connection instead -- the
-        composition root (Phase 10) MUST wire THIS caller's `audit_log`
-        that way, as a narrow exception to `PostgresAuditLog`'s general
-        `runtime_engine` contract, mirroring the same exception already
-        documented for `user_directory`/`session_store`."""
+        """Pre-auth: user_directory, session_store, and audit_log need elevated connections (no GUCs yet)."""
         self._auth = auth
         self._user_directory = user_directory
         self._session_store = session_store

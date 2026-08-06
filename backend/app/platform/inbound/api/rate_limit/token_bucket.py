@@ -1,11 +1,3 @@
-"""`TokenBucket`/`TokenBucketRegistry` (design.md §19, tasks.md task 5.3b):
-per-instance, in-process token-bucket rate limiting for the patient chat
-endpoint -- "token-bucket per-instance keyed por tenant+patient... se evita
-un write a store compartido por mensaje". Deliberately NOT backed by a
-shared store (ADR-17: "la unica dimension que exige exactitud
-cross-instancia es la de auth... el chat, de alta frecuencia, solo necesita
-acotar costo, no exactitud")."""
-
 from collections import OrderedDict
 
 from app.shared_kernel.clock import ClockPort
@@ -35,19 +27,7 @@ class TokenBucket:
 
 
 class TokenBucketRegistry:
-    """A genuinely bounded registry of one `TokenBucket` per key (e.g.
-    `f"{tenant_id}:{patient_id}"`), all sharing the same capacity/refill
-    rate and clock -- lazily creates a bucket the first time a key is seen,
-    reuses it thereafter.
-
-    **Bounded via LRU eviction, capped at `max_buckets`:** an
-    `OrderedDict` tracks last-access order (a key is moved to the end on
-    every access/creation); once creating a new bucket would exceed
-    `max_buckets`, the least-recently-used bucket is evicted first (popped
-    from the front). An evicted bucket's patient simply gets a fresh, full
-    bucket on their next message -- acceptable per design.md ADR-17: this
-    dimension only needs to "acotar costo" (bound memory/cost), not
-    exactness."""
+    """Bounded LRU of TokenBuckets (eviction yields a fresh full bucket)."""
 
     def __init__(self, *, capacity: int, refill_per_second: float, clock: ClockPort, max_buckets: int = 10_000) -> None:
         self._capacity = capacity

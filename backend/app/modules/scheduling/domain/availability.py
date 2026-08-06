@@ -1,15 +1,9 @@
-"""`AvailabilitySlot` domain (design.md §4.1's `availability` table shape).
-Pure value object, no IO."""
-
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 
 
 class AvailabilityStatus(str, Enum):
-    """Mirrors `availability.status`'s CHECK constraint exactly (design.md
-    §4.1)."""
-
     AVAILABLE = "available"
     RESERVED = "reserved"
     BLOCKED = "blocked"

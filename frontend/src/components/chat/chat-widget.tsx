@@ -26,47 +26,7 @@ interface ChatTurn {
   text: string;
 }
 
-/**
- * Embedded patient chat (tasks.md 14.3, design.md §8.5/§8.6, spec
- * `embedded-patient-chat`). Talks to `POST /chat/stream` via `streamChat`
- * (`lib/api/chat.ts`) -- SSE consumed through `fetch` + `ReadableStream`,
- * never the native `EventSource` (GET-only, can't carry the message body).
- *
- * **`thread_id` -- in-memory only, per spec's own hard requirement ("Thread
- * ID is never persisted client-side").** Generated exactly once via
- * `useState(() => crypto.randomUUID())`, the same lazy-initializer shape
- * design.md §8.6 itself shows -- never written to `localStorage`,
- * `sessionStorage`, cookies, or IndexedDB, and never read back from any of
- * them either. A page reload unmounts this component, the in-memory value
- * is lost, and remounting generates a brand-new one -- by construction, not
- * by an explicit "clear on unload" handler (design.md §8.6's own "Refresh =
- * nueva conversacion" argument). Sent to the backend as the request body's
- * `client_random_uuid` field (`chat.py`'s `ChatRequest` -- the real,
- * tenant/user-scoped `thread_id` is assembled server-side FROM this value
- * plus the caller's authenticated identity, never trusted as-is).
- *
- * **Rendering is sanitized Markdown (tasks.md 14.4).** Message text is
- * rendered via `react-markdown` + `rehype-sanitize` (see `MarkdownMessage`
- * below) -- never `dangerouslySetInnerHTML`, per design.md §8.8. Tony's
- * system prompt instructs it to reply in Markdown (headings, lists, bold,
- * code blocks); since that text is LLM-generated, `rehype-sanitize`'s
- * default allowlist schema strips disallowed HTML/attributes and
- * non-http(s)/mailto URI schemes (e.g. `javascript:` links) before render.
- * `react-markdown` itself never parses raw HTML embedded in the Markdown
- * source into real elements unless the `rehype-raw` plugin is added -- it is
- * NOT used here, so embedded raw HTML (e.g. a literal `<script>` tag) is
- * dropped outright, and `rehype-sanitize` is a second, independent layer of
- * defense on top of that default. Likewise, the turn-N/turn-N+1 confirmation-prompt UX (tasks.md
- * 14.5) is not special-cased here: a confirmation prompt from Tony arrives
- * as an ordinary assistant turn (design.md §8.5's own "sin ninguna
- * diferencia de protocolo respecto a una respuesta normal"), so no
- * additional handling is needed for THIS task to already display it.
- */
-
-/**
- * Renders `text` as sanitized Markdown -- shared by both finalized turns and
- * the in-progress streaming draft so the two render paths never diverge.
- */
+/** LLM output: rehype-sanitize only; no rehype-raw / dangerouslySetInnerHTML. */
 function MarkdownMessage({ text }: { text: string }) {
   return (
     <div className="rounded-md bg-muted px-3 py-2 text-sm [&_:is(ul,ol)]:list-outside [&_:is(ul,ol)]:pl-5 [&_a]:underline [&_p:not(:first-child)]:mt-2">
@@ -77,6 +37,7 @@ function MarkdownMessage({ text }: { text: string }) {
 
 export function ChatWidget() {
   const { authorizedFetch } = useAuth();
+  // Ephemeral client UUID; backend derives the real tenant/user-scoped thread id.
   const [threadId] = useState(() => crypto.randomUUID());
   const [messages, setMessages] = useState<ChatTurn[]>([]);
   const [draftText, setDraftText] = useState("");

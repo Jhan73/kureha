@@ -1,16 +1,3 @@
-"""Task 9.3: `GoogleCalendarAdapter` -- `CalendarSyncPort` impl over Google
-Calendar API v3 (design.md §7.1/§7.3/§7.6). No real network: `httpx`'s
-`MockTransport` stands in for Google's HTTP surface (same convention as
-`test_supabase_auth_adapter.py`).
-
-Three concerns per tasks.md task 9.3:
-1. `upsert_event`/`delete_event`'s idempotent upsert semantics (PATCH-first,
-   INSERT-fallback-on-404, 409-on-insert-is-success).
-2. OAuth2 `state` CSRF generation/verification (pure, no network).
-3. Idempotency-key derivation is covered separately in
-   tests/modules/calendar/domain/test_idempotency.py -- this module only
-   asserts the adapter actually USES it as the Calendar event id."""
-
 import httpx
 import pytest
 
@@ -81,8 +68,6 @@ async def test_upsert_event_falls_back_to_insert_when_patch_404s() -> None:
 
 
 async def test_upsert_event_treats_409_on_insert_as_idempotent_success() -> None:
-    """ADR-18 (design.md §7.6): a retry after a timeout that Google actually
-    accepted lands here -- 409 means "already exists", not an error."""
 
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.host == "oauth2.googleapis.com":

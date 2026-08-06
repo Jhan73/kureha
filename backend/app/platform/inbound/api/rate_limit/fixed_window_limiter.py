@@ -1,15 +1,3 @@
-"""`FixedWindowRateLimiter` (design.md §19, tasks.md task 5.3): orchestrates
-`RateCounterStorePort` + `ClockPort` into a pass/fail decision for the
-auth/token mint+refresh dimension -- "sliding/fixed-window sobre
-`rate_counters` (§4.4) en Postgres -- UPSERT atomico por
-`(dimension, subject, window_start)`".
-
-`window_start` is computed here (in application code), not via a Postgres
-`date_trunc` call, so the window size is not tied to a fixed SQL time unit
-(minute/hour/day) -- a deterministic floor of the current epoch second to
-the nearest `window_seconds` boundary, which two requests within the same
-window always agree on regardless of which instance computes it."""
-
 from datetime import datetime, timezone
 
 from app.platform.inbound.api.rate_limit.rate_counter_store import RateCounterStorePort

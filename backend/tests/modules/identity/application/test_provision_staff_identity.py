@@ -1,11 +1,3 @@
-"""`ProvisionStaffIdentity` use case (staff-invite batch, design.md §17
-extension): invites a new staff member's email via `AuthPort.invite_user`
-and creates the corresponding `users`/`user_credentials` rows via
-`UserDirectoryPort.provision_staff_user` -- the identity-module half of
-`POST /staff/register`'s new invite flow (the other half, `RegisterStaff`,
-is unchanged and already tested). Fake ports only, no DB -- mirrors
-`test_login.py`'s own convention."""
-
 from datetime import datetime, timezone
 
 import pytest
@@ -198,9 +190,6 @@ async def test_rejects_an_already_registered_email_without_inviting() -> None:
 
 @pytest.mark.asyncio
 async def test_professional_role_without_a_professional_id_is_rejected_before_inviting() -> None:
-    """`users.professional_id IS NOT NULL` is a hard DB CHECK for
-    `role='professional'` (migration 8fc0dc6f958d) -- validated up front as
-    a clean `ValidationError`, not left to leak as a raw `IntegrityError`."""
     auth = _FakeAuth()
     directory = _FakeUserDirectory()
     use_case = _build(auth, directory)

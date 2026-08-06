@@ -1,38 +1,3 @@
-"""`AnthropicSuggestionGenerator`: the real `SuggestionGeneratorPort` adapter
-`respond` consumes (tasks.md task 12.6, design.md §8.10/§8.11.2). Fast/small
-tier -- design.md §8.10: "La generacion de sugerencias proactivas es una
-tarea de seleccion/ranking sobre `allowed_actions` -- no requiere
-razonamiento profundo." Constructor-injected `ChatAnthropic`, built ONLY via
-`platform/inbound/graph/adapters/llm.py`'s `build_chat_model("fast")` at the
-composition root.
-
-**RBAC-safety is deliberately NOT enforced here.** `respond.py`'s own
-docstring is explicit: "the RBAC-safety filter is enforced HERE, in plain
-code -- never delegated to `SuggestionGeneratorPort`" -- any candidate whose
-`.action` is set but absent from `state.allowed_actions` is dropped
-unconditionally by `respond` itself, regardless of what this (untrusted,
-LLM-generated) adapter returns. This adapter's `action` field is a plain
-`str | None`, NOT a `Literal`-constrained enum like the classifiers built in
-batch 1 -- there is no routing/execution decision resting on this value
-(unlike `IntentClassifierPort`'s 9 categories, where an invented string
-would silently break `_route_by_intent`), so a stricter schema would only
-duplicate `ACTION_CATALOG`'s own key list for no additional safety `respond`
-doesn't already provide.
-
-**Prompt carries the REAL per-turn context, not a generic one.**
-`SuggestionContext.proposed_action_summary` (PR 12 batch 2's own addition to
-that dataclass, `ports/suggestion_generator.py`) is the just-completed
-action's own `summary` text (e.g. "Agenda una cita el martes 10:00 con la
-Dra. Vega") -- design.md §8.11.2's own examples are explicitly contextual to
-what JUST happened ("¿Agregar un recordatorio para ESTA cita?"), which a
-bare `intent`/`outcome_success` pair cannot express.
-
-**Fails to an empty list on ANY error -- matches `UnwiredSuggestionGenerator`
-'s own established contract (`adapters/unwired.py`'s own docstring):
-suggestions are explicitly OPTIONAL (design.md §8.11.2: "no obligatorias"),
-so a generator failure must degrade gracefully, never fail the whole turn
-the way a planner/classifier failure legitimately can."""
-
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 

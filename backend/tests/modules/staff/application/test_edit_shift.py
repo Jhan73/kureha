@@ -1,7 +1,3 @@
-"""Task 8.2: `EditShift` use case -- `authorize` first, confirm the shift
-exists, edit it (the DB's `EXCLUDE USING gist` remains the anti-overlap
-floor), and audit. Fakes only, no DB."""
-
 from datetime import datetime, timezone
 
 import pytest

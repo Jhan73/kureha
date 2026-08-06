@@ -1,40 +1,3 @@
-"""FastAPI application factory (design.md §2.5's `platform/inbound/api/`,
-tasks.md tasks 10.1/10.2/10.3): the process entry point `uvicorn app.main:app`
-serves. Ties together everything PR5/PR6/this session's composition_root
-additions built but nothing had assembled into a running app yet:
-
-1. **Task 10.3** -- calls `register_exception_handlers(app)`
-   (`platform/inbound/api/errors.py`, already complete since a prior
-   session, just never wired into an app until now).
-2. **Task 10.2's forward pointer** -- the lifespan hook calls
-   `bootstrap_rbac_catalog_and_grants()` exactly once, against
-   `open_runtime_connection()`, before the app starts serving traffic
-   (`composition_root.py`'s own docstring: "The future app factory's
-   lifespan MUST call this once... before serving traffic").
-3. **Task 5.1/5.2/5.3 (PR6)** -- mounts `AccessControlMiddleware` and
-   `AuthRateLimitMiddleware`, both built in PR6 as pure orchestration
-   classes taking Protocol dependencies (`resolve_live_actor`,
-   `record_audit`, `runtime_session`, `check_rate_limit`) with an explicit
-   note that "Composition root (task 10.2, not yet built) is where these
-   get wired to the real Postgres engines" -- this module is that wiring,
-   for the first time.
-4. **Task 10.1** -- mounts the auth/scheduling/calendar-oauth routers.
-5. **Task 11.7 (PR 11 batch 3)** -- mounts the chat router (`POST /chat`),
-   the non-streaming LangGraph invocation endpoint -- see
-   `routers/chat.py`'s own module docstring for its `thread_id`
-   ownership-validation contract (design.md §8.6).
-
-**`_ElevatedAuditLog`/`_ElevatedRateCounterStore`/`_resolve_live_actor`
-below are NOT in `composition_root.py`** -- they are glue that is specific
-to wiring THESE TWO MIDDLEWARES' single, constructor-injected dependencies
-(built once at app startup, not per-request), not reusable use-case wiring
-the way every `build_*` function in `composition_root.py` is. Both need a
-FRESH `open_elevated_connection()` per call (there is no per-request
-connection yet at the point either middleware runs -- see
-`PostgresLiveActorResolver`/`PostgresRateCounterStore`'s own docstrings),
-which is why they cannot just be `PostgresAuditLog(conn)`/
-`PostgresRateCounterStore(conn)` constructed once."""
-
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -69,43 +32,21 @@ from app.platform.inbound.api.routers import scheduling as scheduling_router
 from app.platform.inbound.api.routers import staff as staff_router
 from app.shared_kernel.clock import SystemClock
 
-# `/auth/login`/`/auth/refresh`/`/auth/password-reset` are pre-auth by
-# definition -- see `routers/auth.py`'s module docstring
-# (`/auth/password-reset` covers BOTH `password-reset/request` and
-# `password-reset/confirm`, prefix-matched, added this session). `/docs`/
-# `/openapi.json`/`/redoc` are FastAPI's own tooling routes, never behind a
-# caller's session.
 _ACCESS_CONTROL_EXEMPT_PATH_PREFIXES = frozenset(
     {"/auth/login", "/auth/refresh", "/auth/password-reset", "/docs", "/openapi.json", "/redoc"}
 )
-
-# design.md §19 layer 3 / tasks.md task 5.3a: only the auth mint/refresh
-# routes are throttled by IP pre-login. `/auth/password-reset` (added this
-# session) is exactly the same kind of pre-auth, brute-force/enumeration-
-# probing-prone route -- IP dimension only, no new account-dimension
-# limiter (see `routers/auth.py`'s own docstring for why that dimension
-# does not apply here).
 _AUTH_RATE_LIMIT_PROTECTED_PREFIXES = frozenset({"/auth/login", "/auth/refresh", "/auth/password-reset"})
 _AUTH_RATE_LIMIT_WINDOW_SECONDS = 60
 _AUTH_RATE_LIMIT_MAX_ATTEMPTS = 10
 
 
 class _ElevatedAuditLog:
-    """`AuditLogPort` impl opening its own `open_elevated_connection()` per
-    `record()` call. See this module's own docstring for why this cannot be
-    a plain `PostgresAuditLog(conn)` built once at startup."""
-
     async def record(self, entry: AuditEntry) -> str:
         async with open_elevated_connection() as conn:
             return await PostgresAuditLog(conn).record(entry)
 
 
 class _ElevatedRateCounterStore:
-    """`RateCounterStorePort` impl, same "fresh elevated connection per
-    call" shape as `_ElevatedAuditLog` above -- `PostgresRateCounterStore`'s
-    own docstring: "wired against `app.db.engine` (elevated)... since the
-    auth-throttle dimension runs pre-context (no `app.*` GUC exists yet)"."""
-
     async def increment(self, *, dimension, subject, window_start, by=1, tenant_id=None) -> int:
         async with open_elevated_connection() as conn:
             return await PostgresRateCounterStore(conn).increment(
@@ -120,11 +61,6 @@ class _ElevatedRateCounterStore:
 
 
 async def _resolve_live_actor(user_id: str) -> LiveActor | None:
-    """`AccessControlMiddleware`'s `resolve_live_actor` dependency -- fresh
-    elevated connection per call, same reasoning as `_ElevatedAuditLog`
-    above (`PostgresLiveActorResolver`'s own docstring: "the composition
-    root MUST construct this against `app.db.engine`, never
-    `app.db.runtime_engine`")."""
     async with open_elevated_connection() as conn:
         return await PostgresLiveActorResolver(conn).resolve(user_id)
 
@@ -153,13 +89,6 @@ def create_app() -> FastAPI:
 
     audit_log = _ElevatedAuditLog()
 
-    # Added FIRST via `add_middleware` -> ends up INNERMOST among user
-    # middlewares (Starlette prepends on each call) -> runs SECOND per
-    # request, right after the rate limiter. Harmless either way today
-    # (the two middlewares' path sets never overlap -- `/auth/login`/
-    # `/auth/refresh` are exempt from `AccessControlMiddleware`), but
-    # "throttle before resolving identity" is the more defensible default
-    # order for any future overlapping route.
     app.add_middleware(
         AccessControlMiddleware,
         token_verifier=build_access_token_verifier(),
@@ -179,11 +108,6 @@ def create_app() -> FastAPI:
         record_audit=audit_log,
     )
 
-    # Added LAST -> outermost -> runs FIRST per request (see this module's
-    # own comment on `add_middleware` ordering above), so it can answer a
-    # browser's CORS preflight `OPTIONS` before either middleware above ever
-    # runs, and attach `Access-Control-Allow-Origin` to every response,
-    # including error responses from the two middlewares below it.
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[origin.strip() for origin in settings.cors_allowed_origins.split(",") if origin.strip()],

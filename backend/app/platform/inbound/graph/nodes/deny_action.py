@@ -1,16 +1,3 @@
-"""`deny_action` node (design.md §8.2/§8.3, tasks.md task 11.5): the exit
-node `rbac_gate ─ rbac_ok=False ─► deny_action ─► respond ─► END` reaches.
-Audits `AuditAction.RBAC_DENIED` (already defined,
-`governance/audit/domain/audit_entry.py`) and sets a curated
-`response_text` -- mirroring `errors.py`'s own "curated user_message, never
-`str(exception)`" convention (that module's own docstring: "no response
-path can accidentally leak a stack trace... or a secret"). The SAME
-principle applies here: `proposed_action`/RBAC internals (which specific
-permission table row denied it, why) never leak into the user-facing text,
-only a generic "you don't have permission" message -- exactly the wording
-`errors.py`'s own `ActionNotPermittedError` mapping already uses for the
-deterministic (web_form) path, kept consistent between both surfaces."""
-
 from app.modules.governance.audit.application.ports.driven.audit_log import AuditLogPort
 from app.modules.governance.audit.domain.audit_entry import AuditAction, AuditActorType, AuditEntry
 from app.platform.inbound.graph.state import KurehaState

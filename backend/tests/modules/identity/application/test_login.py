@@ -1,6 +1,3 @@
-"""Task 4.3: `Login` use case -- resolves `AuthnResult` -> `users` row,
-mints access+refresh (design.md §17.3/§17.4). Fake ports only, no DB."""
-
 from datetime import datetime, timedelta, timezone
 
 import pytest

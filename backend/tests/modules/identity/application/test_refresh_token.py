@@ -1,7 +1,3 @@
-"""Task 4.4: `RefreshToken` use case -- validate+rotate, 30s grace period,
-reuse-detection revokes the chain, re-checks live active status, re-resolves
-role (design.md §17.4). Fake ports only, no DB."""
-
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -282,7 +278,7 @@ async def test_reuse_within_grace_period_replays_cached_pair() -> None:
 @pytest.mark.asyncio
 async def test_reuse_within_grace_period_without_cache_hit_reuses_the_existing_successor() -> None:
     # A genuine rotation already happened (a successor exists) but this
-    # instance's in-process replay cache missed it (design.md §17.4's
+    # instance's in-process replay cache missed it ('s
     # documented multi-instance limitation). Must NOT mint a second sibling
     # session from the same old parent -- only a fresh access token scoped
     # to the ONE successor that already exists.
@@ -332,7 +328,6 @@ async def test_reuse_of_a_non_rotation_revocation_within_the_grace_window_is_rej
 async def test_reuse_past_grace_period_revokes_the_whole_chain_and_denies() -> None:
     # A genuine rotation happened (successor exists) and the old token is
     # being replayed past the grace window -- the actual reuse-attack
-    # signal design.md §17.4 describes.
     revoked_session = _session(revoked_at=_NOW - timedelta(seconds=31))
     successor = RefreshSession(
         id="sess-successor",

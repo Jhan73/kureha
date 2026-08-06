@@ -1,23 +1,3 @@
-"""Task 10.1's **Must** clause: `/calendar/oauth/authorize` +
-`/calendar/oauth/callback` against the real FastAPI app + real Postgres +
-real LocalStack (`AesGcmVault`'s KEK). Proves:
-
-(a) a valid, CSRF-verified callback connects the patient's calendar
-    end-to-end (`generate_oauth_state`/`verify_oauth_state` actually wired
-    for the first time, `ConnectPatientCalendar` actually authorized+
-    persisted);
-(b) a callback with a mismatched `state` is denied through the real
-    `OAuthStateMismatchError` -> `errors.py` mapping chain, not a
-    hand-rolled 4xx in the router;
-(c) the denial's response body matches the §21 envelope shape, AND the
-    `calendar.oauth_csrf_attempt` audit row this task's own text requires
-    is actually persisted -- proving the audit write survives the
-    request's own rollback (see `calendar_oauth.py`'s `_audit_csrf_attempt`
-    docstring for why a naive same-connection write would NOT survive).
-
-**Sync `def test_...`, not `async def`** -- see `conftest.py`'s own module
-docstring for why."""
-
 import urllib.parse
 
 import httpx

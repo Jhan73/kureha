@@ -1,7 +1,3 @@
-"""Task 2.9 metadata check: every table the migration names actually has
-`ENABLE`+`FORCE ROW LEVEL SECURITY` set, and the three explicitly-excluded
-tables (design.md §4.4 / migration docstring) do NOT."""
-
 import sqlalchemy as sa
 
 RLS_TABLES = {

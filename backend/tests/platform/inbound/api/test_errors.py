@@ -1,11 +1,3 @@
-"""Task 10.3 (design.md §21, ADR-23): the single central exception handler
-that maps every domain/infra exception this codebase raises to the
-non-leaky `{error_code, category, user_message, retryable, correlation_id}`
-envelope. Exercised against a minimal throwaway FastAPI app with routes that
-raise each mapped exception type -- this is the "unica frontera de
-traduccion" §21.2 requires, so every raised exception must come back as this
-exact shape, never a stack trace/exception class name/raw DB text."""
-
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
@@ -135,10 +127,6 @@ def test_validation_error_maps_to_422() -> None:
 
 
 def test_oauth_state_mismatch_maps_to_validation_category_400() -> None:
-    """design.md §7.3 requires 400, not 403 -- §21.1's category table only
-    allows a 400 status under `validation`, never `auth`, so this exception
-    is a more-specific `ValidationError` subclass, not `NotAuthorizedError`,
-    with its own explicit `_MAPPINGS` entry overriding the generic 422."""
     response = _client().get("/boom/oauth-state-mismatch")
 
     assert response.status_code == 400
@@ -159,10 +147,6 @@ def test_rate_limit_exceeded_maps_to_429_and_is_retryable() -> None:
 
 
 def test_llm_budget_exceeded_is_a_more_specific_rate_limit_and_not_retryable() -> None:
-    """design.md §19's own pseudocode marks the daily-budget-exceeded case
-    `retryable: False` (distinct from the general rate-limited row in
-    §21.1, which is retryable "tras la ventana") -- a daily cap does not
-    meaningfully reset within any client-visible retry window."""
     response = _client().get("/boom/llm-budget")
 
     assert response.status_code == 429
@@ -181,7 +165,7 @@ def test_unmapped_exception_falls_back_to_generic_internal_error_500() -> None:
     assert body["error_code"] == "internal_error"
     assert body["category"] == "internal"
     assert body["retryable"] is False
-    # ADR-23 invariant: never leak the raw exception message/stack.
+    # invariant: never leak the raw exception message/stack.
     assert "database connection string" not in body["user_message"]
     assert "RuntimeError" not in body["user_message"]
 
@@ -206,13 +190,6 @@ def test_every_response_has_a_unique_correlation_id() -> None:
 
 
 def test_resolve_error_returns_the_same_envelope_shape_a_mapped_exception_maps_to() -> None:
-    """`resolve_error` (tasks.md task 12.1): the public counterpart to
-    `_handle_exception`'s mapping logic, reusable by ANY translation
-    boundary needing the same §21 envelope shape -- `/chat/stream`'s SSE
-    `error` event is the first other caller (design.md §21: "toda la
-    superficie (API REST + eventos error de SSE, §8.5)"), since an
-    exception raised INSIDE an already-started `StreamingResponse` body
-    iterator never reaches FastAPI's own `add_exception_handler` dispatch."""
     resolved = resolve_error(RateLimitExceededError("too many"))
 
     assert resolved.envelope.error_code == "rate_limited"

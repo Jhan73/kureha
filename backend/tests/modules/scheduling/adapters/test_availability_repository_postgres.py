@@ -1,12 +1,3 @@
-"""Task 7.4: `PostgresAvailabilityRepository` -- `AvailabilityRepositoryPort`
-adapter over `availability` (design.md §4.1, migration 3505dc8ce3ad).
-
-Uses `rls_conn` (the `app_runtime`/RLS-enforced connection), NOT `db_conn` --
-this adapter is wired, in the composition root, against
-`app.db.runtime_engine` with the request's `SET LOCAL app.*` GUCs already
-applied (same contract `PermissionService`/`PostgresConsentRegistry`
-document)."""
-
 from datetime import datetime, timedelta, timezone
 
 from tests.rls.helpers import seed_professional, seed_site, seed_tenant, set_app_context

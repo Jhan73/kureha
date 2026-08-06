@@ -1,11 +1,3 @@
-"""Task 3.6: `seed_action_catalog` -- the code-driven seed mechanism for the
-global `action_permissions` catalog (design.md §4.4: "catalogo global...
-sin RLS"). Before this task nothing populated this table outside of a
-handful of test-only single-row inserts (PR8 review finding) --
-`AuthorizeAction` denied every action by construction against a real
-Postgres. Integration test against `rls_conn` (not a fake port) so the gap
-this task closes is actually proven closed, not just scaffolded."""
-
 import sqlalchemy as sa
 
 from app.modules.governance.rbac.adapters.outbound.rbac.action_catalog import (

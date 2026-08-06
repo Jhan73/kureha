@@ -24,9 +24,7 @@ if config.config_file_name is not None:
 # its migrations (see app/db.py).
 config.set_main_option("sqlalchemy.url", settings.database_url)
 
-# SQLAlchemy Core is used instead of the ORM (design.md §1): there is no
-# declarative Base/MetaData to autogenerate against. Migrations are written
-# explicitly (schema starts in Phase 2, see openspec/changes/kureha-mvp/tasks.md).
+# SQLAlchemy Core (no declarative Base/MetaData) — migrations are hand-written.
 target_metadata = None
 
 # other values from the config, defined by the needs of env.py,

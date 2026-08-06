@@ -16,6 +16,7 @@ Multi-tenant operations platform for clinics and medical practices in Peru: sche
 * Code, identifiers, comments, and error messages: English, everywhere in `backend/` and `frontend/`.
 * SDD documentation under `openspec/` (proposal/spec/design/tasks): Spanish, matching the rest of the project's planning trail.
 * This is a monorepo but `backend/` and `frontend/` are independently deployable — don't add cross-directory imports or shared code outside of documented contracts (OpenAPI schema, not shared TS/Python packages).
+* Comments and docstrings: minimal. Never cite `tasks.md`, specs, `design.md`, ADRs, PR numbers, or work-unit history in code. Keep a docstring only when it documents non-obvious parameters, agent-relevant constraints, or clarifies behavior the name does not already say — never essays or redundant restatements.
 
 ## Delivery
 

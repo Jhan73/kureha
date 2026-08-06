@@ -1,13 +1,3 @@
-"""tasks.md task 12.6 (PR 12 batch 2): `AnthropicSuggestionGenerator`, the
-real `SuggestionGeneratorPort` adapter `respond` consumes (design.md
-§8.10/§8.11.2). Fast tier.
-
-**RBAC-safety is NOT this adapter's job -- `respond.py`'s own docstring:
-"the RBAC-safety filter is enforced HERE, in plain code -- never delegated
-to `SuggestionGeneratorPort`". These tests only prove this adapter generates
-candidates and degrades gracefully; the actual allowed-actions filter is
-covered by `test_respond.py`, unchanged by this batch."""
-
 import pytest
 
 from app.platform.inbound.graph.adapters.anthropic_suggestion_generator import AnthropicSuggestionGenerator
@@ -80,9 +70,6 @@ async def test_generate_returns_candidates_from_the_model() -> None:
 
 
 async def test_generate_sends_the_proposed_action_summary_and_outcome_to_the_model() -> None:
-    """design.md §8.11.2's examples are contextual to the JUST-COMPLETED
-    outcome -- the prompt must carry the real `proposed_action_summary`, not
-    a generic one, or every suggestion degenerates into boilerplate."""
     llm = _FakeChatModel(_Suggestions([_Candidate("¿Notificar al profesional?")]))
     generator = AnthropicSuggestionGenerator(llm)
 
@@ -118,10 +105,6 @@ async def test_generate_sends_only_the_callers_allowed_actions() -> None:
 
 
 async def test_generate_returns_an_empty_list_on_an_llm_error() -> None:
-    """`UnwiredSuggestionGenerator`'s own established contract: suggestions
-    are explicitly optional (design.md §8.11.2: "no obligatorias") -- a
-    generator failure must degrade to no suggestions, never fail the whole
-    turn."""
     llm = _FakeChatModel(RuntimeError("boom"))
     generator = AnthropicSuggestionGenerator(llm)
 

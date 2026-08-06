@@ -1,25 +1,7 @@
-"""rbac tables action_permissions role_permissions user_permissions
+"""Add action_permissions, role_permissions, and user_permissions.
 
-Task 2.5 (openspec/changes/kureha-mvp/tasks.md, Phase 2). Schema per
-design.md §4.4/§5. `action_permissions` is a global catalog (seeded in code,
-not tenant-scoped, no RLS -- §4.4: "catalogo global ... sin RLS").
-`role_permissions`/`user_permissions` are tenant-scoped grants, resolved with
-more-specific-wins precedence (user override > role grant > deny-by-default,
-§5.2) by the application layer -- this migration only enforces the shape
-(uniqueness, FK to the action catalog), not the precedence logic itself.
-
-RLS is deferred to task 2.9, same convention as every other Phase 2 schema
-migration (8fc0dc6f958d onward).
-
-NOTE (tightening on top of design.md's literal SQL, flagged not silently
-applied -- same class of fix as apply-progress's notes on 8fc0dc6f958d):
-`users` never got a `UNIQUE(tenant_id, id)` in 8fc0dc6f958d (nothing FK'd
-into it yet at that point). `user_permissions.user_id` is the first FK into
-`users`, so this migration adds that unique constraint here and uses the
-composite FK `(tenant_id, user_id) REFERENCES users(tenant_id, id)` --
-otherwise a permission override could target a `user_id` belonging to a
-different tenant, the same class of bug the composite FKs elsewhere already
-close.
+action_permissions is a global catalog (no RLS). Adds UNIQUE(tenant_id, id)
+on users for composite FK from user_permissions.
 
 Revision ID: 7d88aa8f8a51
 Revises: 776b456050fe

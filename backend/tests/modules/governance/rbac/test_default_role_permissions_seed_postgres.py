@@ -1,11 +1,3 @@
-"""Task 3.6: `seed_default_role_permissions` -- placeholder, dev-only
-role->action matrix seeded per tenant (design.md §16: the real
-business-approved matrix is explicit "input de negocio pendiente"; this
-mechanism only proves `AuthorizeAction` resolves correctly against seeded
-data end-to-end against a real Postgres, never a fake `AuthorizationPort` --
-the exact gap PR8's review found masked by `_FakeAuthorizationPort` in every
-use-case-level test)."""
-
 import pytest
 
 from app.modules.governance.rbac.adapters.outbound.rbac.action_catalog import seed_action_catalog
@@ -25,7 +17,7 @@ from tests.rls.helpers import seed_tenant, set_app_context
 async def test_seeded_matrix_allows_a_granted_action_for_its_role(rls_conn) -> None:
     tenant_id = await seed_tenant(rls_conn)
     await seed_action_catalog(rls_conn)
-    # `role_permissions` IS tenant-scoped RLS (design.md §4.4) -- the write
+    # `role_permissions` IS tenant-scoped RLS  -- the write
     # needs `app.tenant_id` set, though any role may write (the tenant-only
     # policy, tests/rls/test_rbac_permissions_rls.py).
     await set_app_context(rls_conn, tenant_id=tenant_id, role="admin")

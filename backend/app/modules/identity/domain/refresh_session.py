@@ -1,8 +1,3 @@
-"""`RefreshSession` (design.md §17.4): projection of one `user_sessions`
-row -- the shape `RefreshToken`/`Logout`/`RevokeAllSessionsForUser` operate
-on. `rotated_from` links a session to the one it replaced (rotation chain);
-`revoked_at` is set by logout, admin-revoke, or rotation itself."""
-
 from dataclasses import dataclass
 from datetime import datetime
 

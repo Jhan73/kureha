@@ -1,8 +1,3 @@
-"""Task 11.2: `rbac_gate` node -- authorizes `state.proposed_action` via
-`AuthorizeAction`, with the in-memory `allowed_actions` shortcut design.md
-§5.6/ADR-16 mandates (skip the second Postgres query when the action was
-already loaded by `resolve_toolset` this request)."""
-
 import pytest
 
 from app.modules.governance.rbac.application.use_cases.authorize_action import (

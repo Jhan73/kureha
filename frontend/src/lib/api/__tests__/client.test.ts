@@ -184,8 +184,6 @@ describe("createAuthorizedFetch", () => {
   });
 
   it("dedupes two concurrent 401s into a single refresh call", async () => {
-    // Both original requests (stale token) report 401; both retries (after
-    // the single shared refresh) succeed.
     let nonRefreshCalls = 0;
     vi.mocked(fetch).mockImplementation((input) => {
       const url = String(input);

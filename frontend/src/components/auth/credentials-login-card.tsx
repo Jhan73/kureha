@@ -24,22 +24,11 @@ export interface CredentialsLoginValues {
 export interface CredentialsLoginCardProps {
   title: string;
   description: string;
-  /** Caller-supplied error, e.g. the backend's login-failure message. */
   error: string | null;
   submitting: boolean;
   onSubmit: (values: CredentialsLoginValues) => void;
 }
 
-/**
- * Shared tenant/email/password credentials card, extracted from tasks.md
- * 14.1's original `/login/page.tsx` (this task, 15.1, is its second real
- * caller: `/staff/login/page.tsx`) -- per `frontend/AGENTS.md`'s "extract
- * repeated UI into shared components... avoid duplicated implementations".
- * Purely presentational: owns only field state + client-side "all fields
- * required" validation; the caller owns the actual `login()` call, its own
- * post-login navigation/role-check, and any server-side error to display
- * (`error` prop).
- */
 export function CredentialsLoginCard({
   title,
   description,
@@ -116,10 +105,8 @@ export function CredentialsLoginCard({
           <Button type="submit" className="w-full" disabled={submitting}>
             {submitting ? "Signing in..." : "Sign in"}
           </Button>
-          {/* No federated-login request contract exists on the backend yet
-              (see auth.py's own docstring) -- rendered visibly but
-              disabled, never a fake/mocked Google flow. Same for both the
-              patient and staff login cards. */}
+          {/* No federated-login contract on the backend yet: shown disabled,
+              never a mocked Google flow. */}
           <Button
             type="button"
             variant="outline"

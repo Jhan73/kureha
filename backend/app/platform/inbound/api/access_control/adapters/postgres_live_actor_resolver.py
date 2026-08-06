@@ -1,16 +1,3 @@
-"""`PostgresLiveActorResolver`: `LiveActorResolverPort` adapter over `users`
-LEFT JOIN `staff_members` (design.md §4.2 "Gate de estado activo vivo",
-tasks.md task 5.1).
-
-**Elevated-connection contract, same as `PostgresUserDirectory`** (see
-`app/modules/identity/application/ports/driven/user_directory.py`'s
-docstring for the full rationale): resolving a `user_id` to a live actor
-necessarily happens BEFORE any `app.*` GUC can be set, so the composition
-root (task 10.2) MUST construct this against `app.db.engine`, never
-`app.db.runtime_engine` -- there is no `app_runtime`/RLS session context to
-set in the first place at this point in the request pipeline.
-"""
-
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 

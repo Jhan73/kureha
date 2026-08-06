@@ -6,16 +6,6 @@ import type {
   ScheduleAppointmentParams,
 } from "./types";
 
-/**
- * Thin wrappers over the backend's deterministic web-form routes (tasks.md
- * 14.2, mirrors `backend/app/platform/inbound/api/routers/scheduling.py`'s
- * `POST /appointments/schedule|{id}/reschedule|{id}/cancel|{id}/reminder`).
- * Every call goes through the caller-supplied `authorizedFetch` (see
- * `lib/auth/auth-context.tsx`) so the bearer token and 401 refresh-retry are
- * handled the same way as every other authenticated request -- there is no
- * separate auth handling here.
- */
-
 function jsonHeaders(): Record<string, string> {
   return { "Content-Type": "application/json" };
 }

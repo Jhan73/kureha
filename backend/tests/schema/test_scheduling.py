@@ -1,10 +1,3 @@
-"""Task 2.2: availability, appointments (design.md §4.1).
-
-Anti double-booking is enforced in Postgres itself via
-`EXCLUDE USING gist`, not in application code -> these are constraint tests,
-not use-case tests (no domain/use-case layer exists yet, per tasks.md Phase 3+).
-"""
-
 from datetime import datetime, timedelta, timezone
 
 import sqlalchemy as sa
@@ -236,9 +229,6 @@ async def test_appointments_reject_double_booking_same_professional(db_conn, ten
 
 
 async def test_appointments_allow_overlap_when_prior_is_cancelled(db_conn, tenant_id) -> None:
-    """The EXCLUDE constraint is scoped to active statuses (design.md §4.1):
-    `WHERE (status IN ('scheduled','rescheduled'))` -> a cancelled slot must
-    not block a new booking over the same time range."""
     site_id = await make_site(db_conn, tenant_id)
     professional_id = await make_professional(db_conn, tenant_id, site_id)
     patient_a = await make_patient(db_conn, tenant_id, site_id=site_id)

@@ -1,6 +1,3 @@
-"""Task 6.1: `Tenant` domain value object (design.md §4.1's `tenants` table
-shape + §19's `llm_daily_budget_tokens`). Pure -- no IO."""
-
 from app.modules.tenancy.domain.tenant import Tenant
 
 

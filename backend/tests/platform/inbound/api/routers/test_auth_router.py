@@ -1,43 +1,3 @@
-"""Task 10.1: `/auth/login`/`/auth/refresh`/`/auth/logout` against the real
-FastAPI app (`app/main.py`) + real Postgres. Proves:
-
-(a) a valid login succeeds end-to-end and returns a usable access+refresh
-    pair (verified by immediately using the access token against an
-    authenticated route);
-(b) an unauthenticated request to an authenticated route (`/auth/logout`)
-    is denied by the real `AccessControlMiddleware`;
-(c) the denial's response body matches `errors.py`'s §21 envelope shape
-    exactly.
-
-`Login`'s own `AuthPort` dependency (`SupabaseAuthAdapter`) is swapped for a
-fake HTTP transport via FastAPI's `dependency_overrides` on `get_http_client`
--- there is no real Supabase project reachable in this dev environment
-(ADR-14: "standalone Supabase Auth project"), so faking the ONE external
-HTTP boundary `Login` crosses is the correct seam, not a shortcut around
-anything this router itself owns.
-
-**Sync `def test_...`, not `async def`** -- see `conftest.py`'s own module
-docstring for why.
-
-**Account-dimension (`auth_account`) rate limit, closing
-`auth_rate_limit_middleware.py`'s own deferred-gap docstring** (that
-dimension needs the attempted email, only readable inside this ROUTE
-HANDLER after body parsing -- the IP-dimension middleware runs pre-body-
-parse and cannot see it). `test_five_login_attempts_are_processed_and_a_
-sixth_is_denied_even_with_the_correct_password` and its siblings below
-exercise `routers/auth.py`'s `login` handler's new
-`build_auth_account_rate_limiter` check directly through the real HTTP
-surface -- **deliberately kept to ONE test function** (not split into
-several) to keep this file's total `/auth/login` call count comfortably
-under `app/main.py`'s existing IP-dimension limit
-(`_AUTH_RATE_LIMIT_MAX_ATTEMPTS = 10` per 60s, shared across every test in
-this `client` fixture's `scope="package"` lifetime, keyed by the
-`TestClient`'s own fixed `"testclient"` IP) -- splitting this into 3-4
-separate test functions, each needing 5+ calls to reach the account limit,
-would risk tripping the UNRELATED IP-dimension limit first and turning a
-false 429 into a flaky/misleading failure for a dimension this batch does
-not touch."""
-
 import json
 import uuid
 
@@ -103,14 +63,6 @@ def test_login_succeeds_end_to_end_and_the_returned_token_is_usable(client) -> N
 
 
 def test_logout_without_a_token_is_denied(client) -> None:
-    """`AccessControlMiddleware` denies this BEFORE the route handler (and
-    `errors.py`'s central handler) ever runs -- its own docstring: "Both
-    response bodies are the SAME generic `{"error": "unauthorized"}`
-    regardless of cause", a DELIBERATELY different, simpler contract than
-    `errors.py`'s §21 envelope (see `test_logout_with_a_valid_token_but_a_
-    refresh_token_that_does_not_exist_returns_the_not_found_envelope` below
-    for a denial that DOES flow through a route handler and DOES get the
-    rich envelope)."""
     response = client.post("/auth/logout", json={"refresh_token": "does-not-matter"})
 
     assert response.status_code == 401
@@ -147,12 +99,6 @@ def test_logout_with_a_valid_token_but_a_refresh_token_that_does_not_exist_retur
 
 
 def _fake_supabase_transport_with_accounts(accounts: dict[str, tuple[str, str]]) -> httpx.MockTransport:
-    """`accounts`: `email -> (subject, correct_password)`. Mirrors real
-    Supabase Auth (`SupabaseAuthAdapter.verify_password`): any non-2xx
-    response maps to `InvalidCredentialsError` regardless of the specific
-    reason (unknown email or wrong password), so this fake collapses both
-    into the SAME 400 the real API would also return."""
-
     def handler(request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content)
         account = accounts.get(body.get("email"))
@@ -176,26 +122,6 @@ def _fake_supabase_transport_with_accounts(accounts: dict[str, tuple[str, str]])
 def test_five_login_attempts_are_processed_and_a_sixth_is_denied_even_with_the_correct_password_and_is_tenant_and_email_scoped_and_audited(
     client,
 ) -> None:
-    """`routers/auth.py`'s new `_AUTH_ACCOUNT_RATE_LIMIT_MAX_ATTEMPTS = 5`/
-    `_AUTH_ACCOUNT_RATE_LIMIT_WINDOW_SECONDS = 300` account-dimension check,
-    closing `auth_rate_limit_middleware.py`'s own deferred-gap docstring.
-    Covers, in one flow (see this module's own docstring for why one test):
-
-    (a) 5 attempts against the same tenant+email are PROCESSED (not yet
-        blocked) -- proven by getting a real 401 from `Login`'s own
-        `InvalidCredentialsError`, not a 429;
-    (b) a 6th attempt, even with the CORRECT password, is denied with a 429
-        `rate_limited` envelope -- a true lockout, not just a failed-
-        attempt counter;
-    (c) a DIFFERENT email under the SAME tenant is unaffected (independent
-        counters);
-    (d) the SAME email under a DIFFERENT tenant is unaffected -- the
-        `check`'s `subject` is `f"{tenant_id}:{email}"`, genuinely
-        tenant-scoped, matching `find_by_email`'s own tenant-scoped lookup;
-    (e) exactly one `auth.rate_limited` audit row is recorded, under the
-        REAL tenant_id (not the IP dimension's `SYSTEM_TENANT_ID` sentinel
-        -- this dimension has a real tenant at check time, unlike the
-        pre-login IP dimension)."""
     unique = uuid.uuid4().hex
     email = f"acct-limit-{unique}@example.com"
     other_email = f"acct-limit-other-{unique}@example.com"
