@@ -17,9 +17,11 @@ async def test_get_by_id_returns_the_tenant(db_conn) -> None:
 
 
 async def test_get_by_id_returns_none_for_unknown_tenant(db_conn) -> None:
+    # Not the nil UUID: that is SYSTEM_TENANT_ID, a real (suspended) row
+    # seeded by migration `a1c7e9d34f02` -- see `system_tenant.py`.
     repository = PostgresTenantRepository(db_conn)
 
-    assert await repository.get_by_id("00000000-0000-0000-0000-000000000000") is None
+    assert await repository.get_by_id("11111111-1111-1111-1111-111111111111") is None
 
 
 async def test_get_by_id_reflects_suspended_status(db_conn) -> None:
