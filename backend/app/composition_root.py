@@ -1,6 +1,6 @@
 """Wires adapters into use cases. The only module allowed to cross module boundaries."""
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import timedelta
 
@@ -102,14 +102,14 @@ from app.shared_kernel.clock import ClockPort, SystemClock
 
 
 @asynccontextmanager
-async def open_runtime_connection() -> AsyncIterator[AsyncConnection]:
+async def open_runtime_connection() -> AsyncGenerator[AsyncConnection]:
     async with runtime_engine.connect() as conn:
         async with conn.begin():
             yield conn
 
 
 @asynccontextmanager
-async def open_elevated_connection() -> AsyncIterator[AsyncConnection]:
+async def open_elevated_connection() -> AsyncGenerator[AsyncConnection]:
     async with engine.connect() as conn:
         async with conn.begin():
             yield conn
@@ -120,7 +120,7 @@ def _checkpointer_psycopg_dsn() -> str:
 
 
 @asynccontextmanager
-async def open_checkpointer_connection(tenant_id: str) -> AsyncIterator[psycopg.AsyncConnection]:
+async def open_checkpointer_connection(tenant_id: str) -> AsyncGenerator[psycopg.AsyncConnection]:
     async with await psycopg.AsyncConnection.connect(_checkpointer_psycopg_dsn(), autocommit=True) as conn:
         async with conn.cursor() as cur:
             await cur.execute(f"SET app.tenant_id = '{tenant_id}'")
@@ -200,7 +200,9 @@ def build_sync_appointment_to_calendar(
 
 async def bootstrap_rbac_catalog_and_grants(conn: AsyncConnection) -> None:
     await seed_action_catalog(conn)
-    tenant_rows = await conn.execute(text("SELECT id FROM tenants"))
+    # `status='active'` excludes the system tenant (SYSTEM_TENANT_ID, always
+    # 'suspended') -- it is not a real tenant and must never get RBAC grants.
+    tenant_rows = await conn.execute(text("SELECT id FROM tenants WHERE status = 'active'"))
     tenant_ids = [str(row[0]) for row in tenant_rows]
     for tenant_id in tenant_ids:
         await conn.execute(text(f"SET LOCAL app.tenant_id = '{tenant_id}'"))
@@ -233,7 +235,7 @@ def build_login(conn: AsyncConnection, *, http_client: httpx.AsyncClient) -> Log
     clock = SystemClock()
     return Login(
         SupabaseAuthAdapter(
-            base_url=settings.supabase_url or "", api_key=settings.supabase_anon_key or "", http_client=http_client
+            base_url=settings.supabase_url or "", api_key=settings.supabase_publishable_key or "", http_client=http_client
         ),
         PostgresUserDirectory(conn),
         PostgresSessionStore(conn),
@@ -264,7 +266,7 @@ def build_refresh_token(conn: AsyncConnection) -> RefreshToken:
 def build_request_password_reset(http_client: httpx.AsyncClient) -> RequestPasswordReset:
     return RequestPasswordReset(
         SupabaseAuthAdapter(
-            base_url=settings.supabase_url or "", api_key=settings.supabase_anon_key or "", http_client=http_client
+            base_url=settings.supabase_url or "", api_key=settings.supabase_publishable_key or "", http_client=http_client
         ),
         redirect_url=settings.frontend_base_url,
     )
@@ -280,7 +282,7 @@ def build_complete_password_reset(conn: AsyncConnection, *, http_client: httpx.A
     clock = SystemClock()
     return CompletePasswordReset(
         SupabaseAuthAdapter(
-            base_url=settings.supabase_url or "", api_key=settings.supabase_anon_key or "", http_client=http_client
+            base_url=settings.supabase_url or "", api_key=settings.supabase_publishable_key or "", http_client=http_client
         ),
         PostgresUserDirectory(conn),
         PostgresSessionStore(conn),
@@ -349,9 +351,9 @@ def build_provision_staff_identity(
     return ProvisionStaffIdentity(
         SupabaseAuthAdapter(
             base_url=settings.supabase_url or "",
-            api_key=settings.supabase_anon_key or "",
+            api_key=settings.supabase_publishable_key or "",
             http_client=http_client,
-            service_role_key=settings.supabase_service_role_key or "",
+            secret_key=settings.supabase_secret_key or "",
         ),
         AdminElevatedUserDirectory(PostgresUserDirectory(conn), conn, restore_role=restore_role),
         PostgresAuditLog(conn),

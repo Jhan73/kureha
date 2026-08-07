@@ -160,7 +160,8 @@ locals {
     { name = "CALENDAR_GOOGLE_CLIENT_ID", valueFrom = "${var.google_oauth_secret_arn}:client_id::" },
     { name = "CALENDAR_GOOGLE_CLIENT_SECRET", valueFrom = "${var.google_oauth_secret_arn}:client_secret::" },
     { name = "SUPABASE_URL", valueFrom = "${var.supabase_secret_arn}:url::" },
-    { name = "SUPABASE_ANON_KEY", valueFrom = "${var.supabase_secret_arn}:anon_key::" },
+    { name = "SUPABASE_PUBLISHABLE_KEY", valueFrom = "${var.supabase_secret_arn}:publishable_key::" },
+    { name = "SUPABASE_SECRET_KEY", valueFrom = "${var.supabase_secret_arn}:secret_key::" },
     { name = "ANTHROPIC_API_KEY", valueFrom = var.anthropic_api_key_secret_arn },
   ]
 

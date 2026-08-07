@@ -1,5 +1,5 @@
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
@@ -20,7 +20,7 @@ async def set_role_scope(
 
 
 @asynccontextmanager
-async def scoped_as_patient(conn: AsyncConnection, *, patient_id: str, restore_role: str) -> AsyncIterator[None]:
+async def scoped_as_patient(conn: AsyncConnection, *, patient_id: str, restore_role: str) -> AsyncGenerator[None]:
     await set_role_scope(conn, role="patient", patient_id=patient_id)
     try:
         yield
@@ -29,7 +29,7 @@ async def scoped_as_patient(conn: AsyncConnection, *, patient_id: str, restore_r
 
 
 @asynccontextmanager
-async def scoped_as_admin(conn: AsyncConnection, *, restore_role: str) -> AsyncIterator[None]:
+async def scoped_as_admin(conn: AsyncConnection, *, restore_role: str) -> AsyncGenerator[None]:
     await set_role_scope(conn, role="admin")
     try:
         yield

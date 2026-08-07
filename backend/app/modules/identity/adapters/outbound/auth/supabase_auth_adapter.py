@@ -18,11 +18,11 @@ class SupabaseAuthAdapter:
         base_url: str,
         api_key: str,
         http_client: httpx.AsyncClient,
-        service_role_key: str | None = None,
+        secret_key: str | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._api_key = api_key
-        self._service_role_key = service_role_key
+        self._secret_key = secret_key
         self._http = http_client
 
     async def verify_password(self, email: str, password: str) -> AuthnResult:
@@ -55,9 +55,9 @@ class SupabaseAuthAdapter:
         )
 
     async def invite_user(self, email: str, redirect_to: str) -> AuthnResult:
-        if not self._service_role_key:
+        if not self._secret_key:
             raise RuntimeError(
-                "SupabaseAuthAdapter.invite_user requires service_role_key, none was configured"
+                "SupabaseAuthAdapter.invite_user requires secret_key, none was configured"
             )
         response = await self._http.post(
             f"{self._base_url}{_INVITE_PATH}",
@@ -82,8 +82,8 @@ class SupabaseAuthAdapter:
 
     def _admin_headers(self) -> dict[str, str]:
         return {
-            "apikey": self._service_role_key,
-            "Authorization": f"Bearer {self._service_role_key}",
+            "apikey": self._secret_key,
+            "Authorization": f"Bearer {self._secret_key}",
             "Content-Type": "application/json",
         }
 

@@ -15,7 +15,7 @@ from tests.platform.inbound.api.routers.conftest import (
     seed_reception_actor,
 )
 
-_SERVICE_ROLE_KEY = "test-service-role-key"
+_SECRET_KEY = "sb_secret_test"
 
 
 def _fake_invite_transport(*, subject: str) -> httpx.MockTransport:
@@ -52,7 +52,7 @@ def _existing_user_credentials_email(tenant_id: str, site_id: str, *, email: str
 
 
 def test_register_staff_succeeds_end_to_end_and_creates_a_usable_identity(client, monkeypatch) -> None:
-    monkeypatch.setattr(settings, "supabase_service_role_key", _SERVICE_ROLE_KEY)
+    monkeypatch.setattr(settings, "supabase_secret_key", _SECRET_KEY)
     actor = seed_reception_actor(email="reception-registrar1@example.com")
     token = mint_access_token(
         tenant_id=actor["tenant_id"], site_id=actor["site_id"], role="reception", user_id=actor["user_id"]

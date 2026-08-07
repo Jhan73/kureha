@@ -1,5 +1,8 @@
+from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import AsyncIterator
+
+import asyncio
+import sys
 
 import pytest
 import sqlalchemy as sa
@@ -13,6 +16,13 @@ from app.db import create_engine
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 ALEMBIC_INI = BACKEND_ROOT / "alembic.ini"
+
+
+def pytest_asyncio_loop_factories(config, item):
+    # psycopg async needs SelectorEventLoop on Windows (Proactor raises InterfaceError).
+    if sys.platform == "win32":
+        return {"default": asyncio.SelectorEventLoop}
+    return {"default": asyncio.new_event_loop}
 
 
 def _sync_url() -> str:
