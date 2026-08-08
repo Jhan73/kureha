@@ -101,12 +101,14 @@ async def test_uses_the_client_provided_tenant_id_when_given() -> None:
     use_case = _build(repository, id_generator=id_generator)
 
     command = BootstrapTenantCommand(
-        name="Clinica Test", admin_email="admin@example.com", tenant_id="client-chosen-tenant"
+        name="Clinica Test",
+        admin_email="admin@example.com",
+        tenant_id="11111111-1111-1111-1111-111111111111",
     )
     result = await use_case.execute(command)
 
-    assert result.tenant_id == "client-chosen-tenant"
-    assert repository.provisioned[0]["tenant_id"] == "client-chosen-tenant"
+    assert result.tenant_id == "11111111-1111-1111-1111-111111111111"
+    assert repository.provisioned[0]["tenant_id"] == "11111111-1111-1111-1111-111111111111"
 
 
 async def test_invocation_order_is_repository_then_rbac_seeder_then_audit() -> None:
@@ -155,3 +157,23 @@ async def test_invalid_email_is_rejected_before_touching_any_port() -> None:
 
     with pytest.raises(ValidationError):
         await use_case.execute(BootstrapTenantCommand(name="Clinica Test", admin_email="not-an-email"))
+
+
+async def test_malformed_client_provided_tenant_id_is_rejected_before_touching_any_port() -> None:
+    repository = _FakeTenantProvisioningRepository()
+    rbac_seeder = _FakeRbacSeeder()
+    audit_log = _FakeAuditLog()
+    use_case = _build(repository, rbac_seeder, audit_log)
+
+    command = BootstrapTenantCommand(
+        name="Clinica Test",
+        admin_email="admin@example.com",
+        tenant_id="'; DROP TABLE tenants; --",
+    )
+
+    with pytest.raises(ValidationError):
+        await use_case.execute(command)
+
+    assert repository.provisioned == []
+    assert rbac_seeder.seeded_tenant_ids == []
+    assert audit_log.recorded == []
