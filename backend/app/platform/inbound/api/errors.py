@@ -17,6 +17,7 @@ from app.modules.identity.domain.errors import (
     RefreshReuseDetectedError,
     UnmappedIdentityError,
 )
+from app.platform.inbound.api.access_control.operator_identity import OperatorCredentialError
 from app.platform.inbound.api.rate_limit.errors import LlmBudgetExceededError, RateLimitExceededError
 from app.platform.inbound.graph.streaming.response_guard_stream import ResponseGuardStreamRefusal
 from app.shared_kernel.errors import ConflictError, NotAuthorizedError, NotFoundError, ValidationError
@@ -87,6 +88,8 @@ _MAPPINGS: dict[type[BaseException], _ErrorMapping] = {
     RefreshReuseDetectedError: _ErrorMapping(
         401, "auth_required", "auth", "Tu sesion expiro, inicia sesion nuevamente."
     ),
+    # separate from the tenant RBAC plane -- same generic message (anti-enumeration).
+    OperatorCredentialError: _ErrorMapping(401, "auth_required", "auth", "Credenciales invalidas."),
     # validation (error_code may be finer-grained than category)
     ValidationError: _ErrorMapping(422, "validation_error", "validation", "La solicitud no es valida."),
     OAuthStateMismatchError: _ErrorMapping(
