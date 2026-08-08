@@ -1,4 +1,4 @@
-from app.shared_kernel.errors import ConflictError, NotAuthorizedError, NotFoundError
+from app.shared_kernel.errors import ConflictError, DomainError, NotAuthorizedError, NotFoundError
 
 
 class InvalidCredentialsError(NotAuthorizedError):
@@ -27,3 +27,7 @@ class EmailAlreadyRegisteredError(ConflictError):
 
 class SessionNotFoundError(NotFoundError):
     """No session matches the given id for the calling actor."""
+
+
+class CredentialInvitationFailedError(DomainError):
+    """AuthPort.invite_user failed for an already-provisioned user; the underlying identity has no credential."""
