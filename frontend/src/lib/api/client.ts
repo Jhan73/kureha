@@ -1,5 +1,12 @@
 import { API_BASE_URL } from "./config";
-import type { LoginParams, TokenResponse } from "./types";
+import type {
+  AdminInviteResponse,
+  BootstrapTenantParams,
+  LoginParams,
+  RetryAdminInviteParams,
+  TenantBootstrapResponse,
+  TokenResponse,
+} from "./types";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -62,6 +69,40 @@ export async function logout(params: {
   if (response.status !== 204 && !response.ok) {
     await parseJsonOrThrow(response);
   }
+}
+
+export async function bootstrapTenant(
+  params: BootstrapTenantParams,
+  operatorKey: string,
+): Promise<TenantBootstrapResponse> {
+  const response = await fetch(`${API_BASE_URL}/ops/tenants/bootstrap`, {
+    method: "POST",
+    headers: jsonHeaders({ "X-Kureha-Ops-Key": operatorKey }),
+    body: JSON.stringify({
+      name: params.name,
+      admin_email: params.adminEmail,
+      tenant_id: params.tenantId || undefined,
+      site_name: params.siteName || undefined,
+    }),
+  });
+  return parseJsonOrThrow<TenantBootstrapResponse>(response);
+}
+
+export async function retryAdminInvite(
+  tenantId: string,
+  params: RetryAdminInviteParams,
+  operatorKey: string,
+): Promise<AdminInviteResponse> {
+  const response = await fetch(`${API_BASE_URL}/ops/tenants/${tenantId}/admin-invite`, {
+    method: "POST",
+    headers: jsonHeaders({ "X-Kureha-Ops-Key": operatorKey }),
+    body: JSON.stringify({
+      site_id: params.siteId,
+      admin_user_id: params.adminUserId,
+      admin_email: params.adminEmail,
+    }),
+  });
+  return parseJsonOrThrow<AdminInviteResponse>(response);
 }
 
 export type AuthorizedFetch = (path: string, init?: RequestInit) => Promise<Response>;

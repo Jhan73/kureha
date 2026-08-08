@@ -39,6 +39,34 @@ export interface RescheduleAppointmentParams {
   newAvailabilityId: string;
 }
 
+export interface BootstrapTenantParams {
+  name: string;
+  adminEmail: string;
+  tenantId?: string;
+  siteName?: string;
+}
+
+export interface TenantBootstrapResponse {
+  tenant_id: string;
+  site_id: string;
+  admin_user_id: string;
+  admin_email: string;
+  credential_status: string;
+}
+
+export interface RetryAdminInviteParams {
+  siteId: string;
+  adminUserId: string;
+  adminEmail: string;
+}
+
+export interface AdminInviteResponse {
+  tenant_id: string;
+  admin_user_id: string;
+  admin_email: string;
+  credential_status: string;
+}
+
 export interface ErrorEnvelope {
   error_code: string;
   category: string;
