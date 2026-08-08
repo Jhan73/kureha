@@ -29,6 +29,8 @@ class BootstrapTenant:
     ) -> TenantBootstrapResult:
         BootstrapPolicy.validate_name(command.name)
         BootstrapPolicy.validate_admin_email(command.admin_email)
+        if command.tenant_id is not None:
+            BootstrapPolicy.validate_tenant_id(command.tenant_id)
         site_name = BootstrapPolicy.resolve_site_name(command.name, command.site_name)
 
         tenant_id = command.tenant_id or self._id_generator.new_id()

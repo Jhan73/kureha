@@ -1,4 +1,5 @@
 import re
+import uuid
 
 from app.shared_kernel.errors import ValidationError
 
@@ -16,6 +17,13 @@ class BootstrapPolicy:
     def validate_admin_email(email: str) -> None:
         if not email or not _EMAIL_PATTERN.match(email):
             raise ValidationError(f"invalid admin email: {email!r}")
+
+    @staticmethod
+    def validate_tenant_id(tenant_id: str) -> None:
+        try:
+            uuid.UUID(tenant_id)
+        except ValueError as exc:
+            raise ValidationError(f"invalid tenant_id: {tenant_id!r}") from exc
 
     @staticmethod
     def resolve_site_name(tenant_name: str, site_name: str | None) -> str:

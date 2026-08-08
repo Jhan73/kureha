@@ -42,3 +42,17 @@ def test_site_name_defaults_from_tenant_name_when_blank() -> None:
 
 def test_provided_site_name_is_used_when_present() -> None:
     assert BootstrapPolicy.resolve_site_name("Clinica Test", "Sede Norte") == "Sede Norte"
+
+
+def test_malformed_tenant_id_is_rejected() -> None:
+    with pytest.raises(ValidationError):
+        BootstrapPolicy.validate_tenant_id("not-a-uuid")
+
+
+def test_tenant_id_with_sql_injection_payload_is_rejected() -> None:
+    with pytest.raises(ValidationError):
+        BootstrapPolicy.validate_tenant_id("'; DROP TABLE tenants; --")
+
+
+def test_valid_uuid_tenant_id_is_accepted() -> None:
+    BootstrapPolicy.validate_tenant_id("11111111-1111-1111-1111-111111111111")
