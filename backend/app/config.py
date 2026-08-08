@@ -60,6 +60,12 @@ class Settings(BaseSettings):
     # Canonical frontend origin for Supabase invite/password-reset redirect_to.
     frontend_base_url: str = "http://localhost:3000"
 
+    # Comma-separated `key_id:sha256_hex` pairs for the operator credential plane
+    # (X-Kureha-Ops-Key). Empty -> StaticOperatorCredentialVerifier denies everything.
+    ops_bootstrap_credentials: str = ""
+    # Kill-switch: the /ops router only registers when this is True.
+    ops_bootstrap_enabled: bool = False
+
 
 @lru_cache
 def get_settings() -> Settings:
