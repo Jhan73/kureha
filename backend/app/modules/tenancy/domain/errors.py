@@ -1,4 +1,4 @@
-from app.shared_kernel.errors import NotAuthorizedError, NotFoundError
+from app.shared_kernel.errors import ConflictError, NotAuthorizedError, NotFoundError
 
 
 class TenantNotFoundError(NotFoundError):
@@ -7,3 +7,7 @@ class TenantNotFoundError(NotFoundError):
 
 class TenantSuspendedError(NotAuthorizedError):
     """Tenant exists but is suspended; not NotFoundError."""
+
+
+class TenantAlreadyExistsError(ConflictError):
+    """A `tenants` row with the given id already exists."""
