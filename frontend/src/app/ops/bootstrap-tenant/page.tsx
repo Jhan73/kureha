@@ -38,7 +38,6 @@ export default function BootstrapTenantPage() {
   const [operatorKey, setOperatorKey] = useState("");
   const [name, setName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
-  const [tenantId, setTenantId] = useState("");
   const [siteName, setSiteName] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
@@ -67,7 +66,6 @@ export default function BootstrapTenantPage() {
         {
           name: name.trim(),
           adminEmail: adminEmail.trim(),
-          tenantId: tenantId.trim() || undefined,
           siteName: siteName.trim() || undefined,
         },
         usedOperatorKey,
@@ -150,16 +148,6 @@ export default function BootstrapTenantPage() {
                 type="email"
                 value={adminEmail}
                 onChange={(event) => setAdminEmail(event.target.value)}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="tenant-id">Tenant ID (optional)</Label>
-              <Input
-                id="tenant-id"
-                name="tenant-id"
-                value={tenantId}
-                onChange={(event) => setTenantId(event.target.value)}
-                placeholder="Auto-generated if left blank"
               />
             </div>
             <div className="flex flex-col gap-1.5">

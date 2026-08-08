@@ -42,7 +42,6 @@ export interface RescheduleAppointmentParams {
 export interface BootstrapTenantParams {
   name: string;
   adminEmail: string;
-  tenantId?: string;
   siteName?: string;
 }
 

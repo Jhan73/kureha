@@ -81,7 +81,6 @@ export async function bootstrapTenant(
     body: JSON.stringify({
       name: params.name,
       admin_email: params.adminEmail,
-      tenant_id: params.tenantId || undefined,
       site_name: params.siteName || undefined,
     }),
   });
