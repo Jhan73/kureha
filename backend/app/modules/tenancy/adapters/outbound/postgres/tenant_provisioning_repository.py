@@ -27,23 +27,32 @@ class PostgresTenantProvisioningRepository:
     async def provision(
         self,
         *,
-        tenant_id: str,
+        tenant_id: str | None,
         name: str,
         site_id: str,
         site_name: str,
         admin_user_id: str,
         admin_email: str,
-    ) -> None:
-        await self._set_local_context(tenant_id=tenant_id, role="admin")
-
+    ) -> str:
         try:
             async with self._conn.begin_nested():
-                await self._conn.execute(
-                    text("INSERT INTO tenants (id, name) VALUES (:id, :name)"),
-                    {"id": tenant_id, "name": name},
-                )
+                if tenant_id is None:
+                    result = await self._conn.execute(
+                        text("INSERT INTO tenants (name) VALUES (:name) RETURNING id"),
+                        {"name": name},
+                    )
+                    tenant_id = str(result.scalar_one())
+                else:
+                    await self._conn.execute(
+                        text("INSERT INTO tenants (id, name) VALUES (:id, :name)"),
+                        {"id": tenant_id, "name": name},
+                    )
         except IntegrityError as exc:
             raise TenantAlreadyExistsError(f"tenant already exists: {tenant_id}") from exc
+
+        # `tenants` has no RLS policy, so `app.tenant_id` does not need to be
+        # set before the insert above -- only `sites`/`users` below check it.
+        await self._set_local_context(tenant_id=tenant_id, role="admin")
 
         await self._conn.execute(
             text("INSERT INTO sites (id, tenant_id, name) VALUES (:id, :tenant_id, :name)"),
@@ -63,6 +72,8 @@ class PostgresTenantProvisioningRepository:
             ),
             {"tenant_id": tenant_id, "user_id": admin_user_id, "email": admin_email},
         )
+
+        return tenant_id
 
     async def _set_local_context(self, *, tenant_id: str, role: str) -> None:
         """Sets all six `app.*` GUCs -- `current_setting()` without

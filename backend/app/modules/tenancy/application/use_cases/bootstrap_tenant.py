@@ -33,12 +33,11 @@ class BootstrapTenant:
             BootstrapPolicy.validate_tenant_id(command.tenant_id)
         site_name = BootstrapPolicy.resolve_site_name(command.name, command.site_name)
 
-        tenant_id = command.tenant_id or self._id_generator.new_id()
         site_id = self._id_generator.new_id()
         admin_user_id = self._id_generator.new_id()
 
-        await self._repository.provision(
-            tenant_id=tenant_id,
+        tenant_id = await self._repository.provision(
+            tenant_id=command.tenant_id,
             name=command.name,
             site_id=site_id,
             site_name=site_name,

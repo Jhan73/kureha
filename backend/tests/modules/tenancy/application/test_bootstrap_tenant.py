@@ -16,16 +16,19 @@ class _FakeIdGenerator:
 
 
 class _FakeTenantProvisioningRepository:
+    _DB_GENERATED_TENANT_ID = "db-generated-tenant-id"
+
     def __init__(self, *, raises: Exception | None = None, calls: list[str] | None = None) -> None:
         self._raises = raises
         self._calls = calls if calls is not None else []
         self.provisioned: list[dict] = []
 
-    async def provision(self, **kwargs) -> None:
+    async def provision(self, **kwargs) -> str:
         self._calls.append("repository.provision")
         self.provisioned.append(kwargs)
         if self._raises:
             raise self._raises
+        return kwargs["tenant_id"] or self._DB_GENERATED_TENANT_ID
 
 
 class _FakeRbacSeeder:
@@ -53,7 +56,7 @@ def _build(repository=None, rbac_seeder=None, audit_log=None, id_generator=None)
     repository = repository or _FakeTenantProvisioningRepository()
     rbac_seeder = rbac_seeder or _FakeRbacSeeder()
     audit_log = audit_log or _FakeAuditLog()
-    id_generator = id_generator or _FakeIdGenerator(["tenant-1", "site-1", "user-1"])
+    id_generator = id_generator or _FakeIdGenerator(["site-1", "user-1"])
     return BootstrapTenant(repository, rbac_seeder, audit_log, id_generator)
 
 
@@ -66,14 +69,15 @@ async def test_bootstraps_a_new_tenant_end_to_end() -> None:
     command = BootstrapTenantCommand(name="Clinica Test", admin_email="admin@example.com")
     result = await use_case.execute(command, operator_key_id="ops-key-1")
 
-    assert result.tenant_id == "tenant-1"
+    db_generated_id = _FakeTenantProvisioningRepository._DB_GENERATED_TENANT_ID
+    assert result.tenant_id == db_generated_id
     assert result.site_id == "site-1"
     assert result.admin_user_id == "user-1"
     assert result.admin_email == "admin@example.com"
 
     assert repository.provisioned == [
         {
-            "tenant_id": "tenant-1",
+            "tenant_id": None,
             "name": "Clinica Test",
             "site_id": "site-1",
             "site_name": "Clinica Test Main Site",
@@ -81,16 +85,16 @@ async def test_bootstraps_a_new_tenant_end_to_end() -> None:
             "admin_email": "admin@example.com",
         }
     ]
-    assert rbac_seeder.seeded_tenant_ids == ["tenant-1"]
+    assert rbac_seeder.seeded_tenant_ids == [db_generated_id]
 
     assert len(audit_log.recorded) == 1
     entry = audit_log.recorded[0]
-    assert entry.tenant_id == "tenant-1"
+    assert entry.tenant_id == db_generated_id
     assert entry.site_id == "site-1"
     assert entry.actor_type == AuditActorType.SYSTEM
     assert entry.action == AuditAction.TENANT_BOOTSTRAP
     assert entry.object_type == "tenant"
-    assert entry.object_id == "tenant-1"
+    assert entry.object_id == db_generated_id
     assert entry.payload["operator_key_id"] == "ops-key-1"
     assert entry.payload["admin_email"] == "admin@example.com"
 

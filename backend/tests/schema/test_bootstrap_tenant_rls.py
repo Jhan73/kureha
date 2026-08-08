@@ -213,6 +213,51 @@ async def test_bootstrap_tenant_provisions_full_tenant_and_seeds_rbac(rls_conn) 
     assert await permission_service.is_allowed(ctx, ActionKey("appointment:create")) is True
 
 
+async def test_provision_generates_the_tenant_id_via_the_db_default_when_none_is_supplied(rls_conn) -> None:
+    site_id = str(uuid.uuid4())
+    admin_user_id = str(uuid.uuid4())
+    repo = PostgresTenantProvisioningRepository(rls_conn)
+
+    resolved_tenant_id = await repo.provision(
+        tenant_id=None,
+        name="DB Generated Clinic",
+        site_id=site_id,
+        site_name="Main Site",
+        admin_user_id=admin_user_id,
+        admin_email="admin@db-generated-clinic.test",
+    )
+
+    assert uuid.UUID(resolved_tenant_id).version == 4
+
+    await set_app_context(rls_conn, tenant_id=resolved_tenant_id, site_id=site_id, role="admin")
+    tenants = (
+        await rls_conn.execute(sa.text("SELECT id FROM tenants WHERE id = :t"), {"t": resolved_tenant_id})
+    ).all()
+    assert [str(row.id) for row in tenants] == [resolved_tenant_id]
+    sites = (
+        await rls_conn.execute(sa.text("SELECT id FROM sites WHERE tenant_id = :t"), {"t": resolved_tenant_id})
+    ).all()
+    assert [str(row.id) for row in sites] == [site_id]
+
+
+async def test_provision_returns_the_supplied_tenant_id_when_given(rls_conn) -> None:
+    tenant_id = str(uuid.uuid4())
+    site_id = str(uuid.uuid4())
+    admin_user_id = str(uuid.uuid4())
+    repo = PostgresTenantProvisioningRepository(rls_conn)
+
+    resolved_tenant_id = await repo.provision(
+        tenant_id=tenant_id,
+        name="Supplied Id Clinic",
+        site_id=site_id,
+        site_name="Main Site",
+        admin_user_id=admin_user_id,
+        admin_email="admin@supplied-id-clinic.test",
+    )
+
+    assert resolved_tenant_id == tenant_id
+
+
 async def test_provision_raises_tenant_already_exists_for_a_duplicate_tenant_id(rls_conn) -> None:
     tenant_id = str(uuid.uuid4())
     repo = PostgresTenantProvisioningRepository(rls_conn)
