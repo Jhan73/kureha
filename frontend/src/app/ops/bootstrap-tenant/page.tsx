@@ -44,6 +44,7 @@ export default function BootstrapTenantPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<TenantBootstrapResponse | null>(null);
+  const [bootstrapOperatorKey, setBootstrapOperatorKey] = useState("");
 
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
@@ -52,12 +53,14 @@ export default function BootstrapTenantPage() {
     event.preventDefault();
     setError(null);
     setRetryError(null);
+    setResult(null);
 
     if (!operatorKey.trim() || !name.trim() || !adminEmail.trim()) {
       setError("Operator key, tenant name, and admin email are required.");
       return;
     }
 
+    const usedOperatorKey = operatorKey.trim();
     setSubmitting(true);
     try {
       const response = await bootstrapTenant(
@@ -67,9 +70,10 @@ export default function BootstrapTenantPage() {
           tenantId: tenantId.trim() || undefined,
           siteName: siteName.trim() || undefined,
         },
-        operatorKey.trim(),
+        usedOperatorKey,
       );
       setResult(response);
+      setBootstrapOperatorKey(usedOperatorKey);
     } catch (err) {
       setError(errorMessageFor(err));
     } finally {
@@ -91,7 +95,7 @@ export default function BootstrapTenantPage() {
           adminUserId: result.admin_user_id,
           adminEmail: result.admin_email,
         },
-        operatorKey.trim(),
+        bootstrapOperatorKey,
       );
       setResult({ ...result, credential_status: response.credential_status });
     } catch (err) {

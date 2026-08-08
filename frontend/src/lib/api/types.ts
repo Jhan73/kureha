@@ -46,12 +46,14 @@ export interface BootstrapTenantParams {
   siteName?: string;
 }
 
+export type CredentialStatus = "invited" | "invite_failed";
+
 export interface TenantBootstrapResponse {
   tenant_id: string;
   site_id: string;
   admin_user_id: string;
   admin_email: string;
-  credential_status: string;
+  credential_status: CredentialStatus;
 }
 
 export interface RetryAdminInviteParams {
@@ -64,7 +66,7 @@ export interface AdminInviteResponse {
   tenant_id: string;
   admin_user_id: string;
   admin_email: string;
-  credential_status: string;
+  credential_status: CredentialStatus;
 }
 
 export interface ErrorEnvelope {
