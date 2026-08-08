@@ -1,5 +1,6 @@
 import uuid
 
+import pytest
 import sqlalchemy as sa
 from sqlalchemy.exc import DBAPIError
 
@@ -14,6 +15,7 @@ from app.modules.tenancy.adapters.outbound.postgres.tenant_provisioning_reposito
     PostgresTenantProvisioningRepository,
 )
 from app.modules.tenancy.adapters.outbound.rbac.default_permissions_seeder import DefaultRolePermissionsSeeder
+from app.modules.tenancy.domain.errors import TenantAlreadyExistsError
 from app.shared_kernel.tenant_context import TenantContext
 from tests.rls.helpers import seed_site, seed_tenant, set_app_context
 from tests.schema.helpers import expect_violation
@@ -209,3 +211,33 @@ async def test_bootstrap_tenant_provisions_full_tenant_and_seeds_rbac(rls_conn) 
     permission_service = PermissionService(rls_conn)
     ctx = TenantContext(tenant_id=tenant_id, role="admin", site_id=site_id, actor_id=admin_user_id)
     assert await permission_service.is_allowed(ctx, ActionKey("appointment:create")) is True
+
+
+async def test_provision_raises_tenant_already_exists_for_a_duplicate_tenant_id(rls_conn) -> None:
+    tenant_id = str(uuid.uuid4())
+    repo = PostgresTenantProvisioningRepository(rls_conn)
+
+    await repo.provision(
+        tenant_id=tenant_id,
+        name="Duplicate Clinic",
+        site_id=str(uuid.uuid4()),
+        site_name="Main Site",
+        admin_user_id=str(uuid.uuid4()),
+        admin_email="admin@duplicate-clinic.test",
+    )
+
+    with pytest.raises(TenantAlreadyExistsError):
+        await repo.provision(
+            tenant_id=tenant_id,
+            name="Duplicate Clinic Again",
+            site_id=str(uuid.uuid4()),
+            site_name="Main Site",
+            admin_user_id=str(uuid.uuid4()),
+            admin_email="admin2@duplicate-clinic.test",
+        )
+
+    # The failed retry must not have left a second site/user behind, and the
+    # connection must still be usable for further RLS-protected queries.
+    await set_app_context(rls_conn, tenant_id=tenant_id, role="admin")
+    sites = (await rls_conn.execute(sa.text("SELECT id FROM sites WHERE tenant_id = :t"), {"t": tenant_id})).all()
+    assert len(sites) == 1

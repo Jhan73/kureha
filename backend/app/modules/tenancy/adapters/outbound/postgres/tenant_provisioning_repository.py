@@ -1,5 +1,8 @@
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection
+
+from app.modules.tenancy.domain.errors import TenantAlreadyExistsError
 
 _NIL_UUID = "00000000-0000-0000-0000-000000000000"
 _GUC_COLUMNS = ("tenant_id", "site_id", "role", "user_id", "patient_id", "professional_id")
@@ -33,10 +36,15 @@ class PostgresTenantProvisioningRepository:
     ) -> None:
         await self._set_local_context(tenant_id=tenant_id, role="admin")
 
-        await self._conn.execute(
-            text("INSERT INTO tenants (id, name) VALUES (:id, :name)"),
-            {"id": tenant_id, "name": name},
-        )
+        try:
+            async with self._conn.begin_nested():
+                await self._conn.execute(
+                    text("INSERT INTO tenants (id, name) VALUES (:id, :name)"),
+                    {"id": tenant_id, "name": name},
+                )
+        except IntegrityError as exc:
+            raise TenantAlreadyExistsError(f"tenant already exists: {tenant_id}") from exc
+
         await self._conn.execute(
             text("INSERT INTO sites (id, tenant_id, name) VALUES (:id, :tenant_id, :name)"),
             {"id": site_id, "tenant_id": tenant_id, "name": site_name},
