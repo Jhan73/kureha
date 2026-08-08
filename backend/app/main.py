@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.composition_root import (
     bootstrap_rbac_catalog_and_grants,
     build_access_token_verifier,
+    build_operator_credential_verifier,
     build_runtime_session,
     open_elevated_connection,
     open_runtime_connection,
@@ -28,12 +29,13 @@ from app.platform.inbound.api.rate_limit.fixed_window_limiter import FixedWindow
 from app.platform.inbound.api.routers import auth as auth_router
 from app.platform.inbound.api.routers import calendar_oauth as calendar_oauth_router
 from app.platform.inbound.api.routers import chat as chat_router
+from app.platform.inbound.api.routers import ops_tenants as ops_tenants_router
 from app.platform.inbound.api.routers import scheduling as scheduling_router
 from app.platform.inbound.api.routers import staff as staff_router
 from app.shared_kernel.clock import SystemClock
 
 _ACCESS_CONTROL_EXEMPT_PATH_PREFIXES = frozenset(
-    {"/auth/login", "/auth/refresh", "/auth/password-reset", "/docs", "/openapi.json", "/redoc"}
+    {"/auth/login", "/auth/refresh", "/auth/password-reset", "/ops", "/docs", "/openapi.json", "/redoc"}
 )
 _AUTH_RATE_LIMIT_PROTECTED_PREFIXES = frozenset({"/auth/login", "/auth/refresh", "/auth/password-reset"})
 _AUTH_RATE_LIMIT_WINDOW_SECONDS = 60
@@ -86,6 +88,10 @@ def create_app() -> FastAPI:
     app.include_router(calendar_oauth_router.router)
     app.include_router(chat_router.router)
     app.include_router(staff_router.router)
+    if settings.ops_bootstrap_enabled:
+        app.include_router(ops_tenants_router.router)
+
+    app.state.operator_credential_verifier = build_operator_credential_verifier()
 
     audit_log = _ElevatedAuditLog()
 

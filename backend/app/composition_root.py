@@ -52,6 +52,7 @@ from app.modules.identity.adapters.outbound.tokens.secure_secret_generator impor
 from app.modules.identity.adapters.outbound.tokens.ttl_rotation_replay_cache import TTLRotationReplayCache
 from app.modules.identity.application.ports.driven.user_directory import UserDirectoryPort
 from app.modules.identity.application.use_cases.complete_password_reset import CompletePasswordReset
+from app.modules.identity.application.use_cases.invite_existing_user import InviteExistingUser
 from app.modules.identity.application.use_cases.login import Login
 from app.modules.identity.application.use_cases.logout import Logout
 from app.modules.identity.application.use_cases.provision_staff_identity import ProvisionStaffIdentity
@@ -73,7 +74,16 @@ from app.modules.staff.application.use_cases.edit_shift import EditShift
 from app.modules.staff.application.use_cases.register_staff import RegisterStaff
 from app.modules.staff.domain.staff_policy import StaffPolicy
 from app.modules.tenancy.adapters.outbound.postgres.tenant_repository import PostgresTenantRepository
+from app.modules.tenancy.adapters.outbound.postgres.tenant_provisioning_repository import (
+    PostgresTenantProvisioningRepository,
+)
+from app.modules.tenancy.adapters.outbound.rbac.default_permissions_seeder import DefaultRolePermissionsSeeder
+from app.modules.tenancy.application.use_cases.bootstrap_tenant import BootstrapTenant
 from app.modules.tenancy.application.use_cases.get_tenant import GetTenant
+from app.platform.inbound.api.access_control.adapters.static_operator_credential_verifier import (
+    StaticOperatorCredentialVerifier,
+)
+from app.platform.inbound.api.access_control.operator_identity import OperatorCredentialVerifierPort
 from app.platform.inbound.api.access_control.role_scope import scoped_as_admin, scoped_as_patient
 from app.platform.inbound.api.access_control.runtime_session import EngineRuntimeSession
 from app.platform.inbound.api.audit_safety import record_audit_best_effort
@@ -99,6 +109,7 @@ from app.platform.inbound.graph.ports.staff_planner import StaffPlannerPort
 from app.platform.inbound.graph.ports.suggestion_generator import SuggestionGeneratorPort
 from app.platform.outbound.channel.console_channel import ConsoleReminderChannel
 from app.shared_kernel.clock import ClockPort, SystemClock
+from app.shared_kernel.id_generator import UuidGenerator
 
 
 @asynccontextmanager
@@ -494,6 +505,39 @@ def build_get_tenant(conn: AsyncConnection) -> GetTenant:
     return GetTenant(PostgresTenantRepository(conn))
 
 
+def build_bootstrap_tenant(conn: AsyncConnection) -> BootstrapTenant:
+    """`conn` MUST be an `open_runtime_connection()` connection (RLS enforced,
+    `app_runtime`, no bypass -- design.md ADR-02)."""
+    return BootstrapTenant(
+        PostgresTenantProvisioningRepository(conn),
+        DefaultRolePermissionsSeeder(conn),
+        PostgresAuditLog(conn),
+        UuidGenerator(),
+    )
+
+
+def build_invite_existing_user(conn: AsyncConnection, *, http_client: httpx.AsyncClient) -> InviteExistingUser:
+    return InviteExistingUser(
+        SupabaseAuthAdapter(
+            base_url=settings.supabase_url or "",
+            api_key=settings.supabase_publishable_key or "",
+            http_client=http_client,
+            secret_key=settings.supabase_secret_key or "",
+        ),
+        PostgresUserDirectory(conn),
+        PostgresAuditLog(conn),
+        invite_redirect_url=f"{settings.frontend_base_url}/staff/login",
+    )
+
+
+def build_operator_credential_verifier() -> OperatorCredentialVerifierPort:
+    return StaticOperatorCredentialVerifier(settings.ops_bootstrap_credentials)
+
+
+def build_ops_bootstrap_rate_limiter(conn: AsyncConnection) -> FixedWindowRateLimiter:
+    return FixedWindowRateLimiter(PostgresRateCounterStore(conn), clock=SystemClock())
+
+
 class _ElevatedRateCounterStore:
     async def increment(self, *, dimension, subject, window_start, by=1, tenant_id=None) -> int:
         async with open_elevated_connection() as conn:
@@ -536,6 +580,7 @@ __all__ = [
     "build_affirmation_classifier",
     "build_auth_account_rate_limiter",
     "build_authorize_action",
+    "build_bootstrap_tenant",
     "build_cancel_appointment",
     "build_chat_rate_limiter",
     "build_check_consent",
@@ -548,7 +593,10 @@ __all__ = [
     "build_get_tenant",
     "build_google_calendar_adapter",
     "build_intent_classifier",
+    "build_invite_existing_user",
     "build_login",
+    "build_operator_credential_verifier",
+    "build_ops_bootstrap_rate_limiter",
     "build_provision_staff_identity",
     "build_register_staff",
     "build_logout",

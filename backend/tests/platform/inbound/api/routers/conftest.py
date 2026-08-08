@@ -179,6 +179,17 @@ def reset_auth_ip_rate_limit_budget() -> None:
     _run(_reset())
 
 
+def reset_ops_bootstrap_rate_limit_budget(operator_key_id: str) -> None:
+    async def _reset() -> None:
+        async with _committing_conn() as conn:
+            await conn.execute(
+                sa.text("DELETE FROM rate_counters WHERE dimension = 'ops_bootstrap' AND subject = :subject"),
+                {"subject": operator_key_id},
+            )
+
+    _run(_reset())
+
+
 def count_audit_rows(tenant_id: str, action: str) -> int:
     async def _count() -> int:
         async with _committing_conn() as conn:
