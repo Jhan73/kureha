@@ -6,6 +6,7 @@ from app.modules.calendar.domain.errors import OAuthStateMismatchError
 from app.modules.governance.rbac.application.use_cases.authorize_action import ActionNotPermittedError
 from app.modules.identity.domain.errors import InvalidCredentialsError, UnmappedIdentityError
 from app.modules.scheduling.domain.errors import AppointmentNotFoundError, SlotUnavailableError
+from app.platform.inbound.api.access_control.operator_identity import OperatorCredentialError
 from app.platform.inbound.api.errors import register_exception_handlers, resolve_error
 from app.platform.inbound.api.rate_limit.errors import LlmBudgetExceededError, RateLimitExceededError
 from app.shared_kernel.errors import ValidationError
@@ -46,6 +47,10 @@ def _build_app() -> FastAPI:
     @app.get("/boom/oauth-state-mismatch")
     def _oauth_state_mismatch():
         raise OAuthStateMismatchError()
+
+    @app.get("/boom/operator-credential")
+    def _operator_credential():
+        raise OperatorCredentialError("bad ops credential")
 
     @app.get("/boom/rate-limited")
     def _rate_limited():
@@ -97,6 +102,15 @@ def test_unmapped_identity_also_maps_to_auth_required_401() -> None:
 
     assert response.status_code == 401
     assert response.json()["category"] == "auth"
+
+
+def test_operator_credential_error_maps_to_auth_required_401_not_auth_forbidden() -> None:
+    response = _client().get("/boom/operator-credential")
+
+    assert response.status_code == 401
+    body = response.json()
+    assert body["category"] == "auth"
+    assert body["error_code"] == "auth_required"
 
 
 def test_not_found_error_maps_to_validation_category_404() -> None:

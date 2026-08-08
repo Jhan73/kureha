@@ -36,6 +36,7 @@ class AuditAction(str, Enum):
     CALENDAR_OAUTH_CSRF_ATTEMPT = "calendar.oauth_csrf_attempt"
     AUTH_CREDENTIAL_CREATED = "auth.credential_created"
     TENANT_BOOTSTRAP = "tenant.bootstrap"
+    OPS_CREDENTIAL_DENIED = "ops.credential_denied"
 
 
 @dataclass(frozen=True, slots=True)
