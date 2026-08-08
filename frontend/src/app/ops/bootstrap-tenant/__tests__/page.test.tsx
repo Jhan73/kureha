@@ -40,11 +40,19 @@ describe("BootstrapTenantPage", () => {
     const [url, init] = vi.mocked(fetch).mock.calls[0];
     expect(url).toContain("/ops/tenants/bootstrap");
     expect((init?.headers as Record<string, string>)["X-Kureha-Ops-Key"]).toBe("op-1.secret");
-    expect(JSON.parse(init?.body as string)).toMatchObject({
+    const requestBody = JSON.parse(init?.body as string);
+    expect(requestBody).toMatchObject({
       name: "Clinica Sur",
       admin_email: "admin@clinica-sur.pe",
     });
+    expect(requestBody).not.toHaveProperty("tenant_id");
     expect(screen.queryByText(/invite failed/i)).toBeNull();
+  });
+
+  it("does not render a tenant ID field -- the database generates it", () => {
+    render(<BootstrapTenantPage />);
+
+    expect(screen.queryByLabelText(/tenant id/i)).toBeNull();
   });
 
   it("shows an operator-key error on a 401 and does not render a result", async () => {
