@@ -35,6 +35,7 @@ class AuditAction(str, Enum):
     APPOINTMENT_REMINDER_SENT = "appointment.reminder_sent"
     CALENDAR_OAUTH_CSRF_ATTEMPT = "calendar.oauth_csrf_attempt"
     AUTH_CREDENTIAL_CREATED = "auth.credential_created"
+    TENANT_BOOTSTRAP = "tenant.bootstrap"
 
 
 @dataclass(frozen=True, slots=True)

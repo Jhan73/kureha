@@ -25,6 +25,7 @@ _EXPECTED_ACTIONS = {
     "appointment.reminder_sent",
     "calendar.oauth_csrf_attempt",
     "auth.credential_created",
+    "tenant.bootstrap",
 }
 
 
