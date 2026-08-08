@@ -34,21 +34,21 @@ class PostgresTenantProvisioningRepository:
         admin_user_id: str,
         admin_email: str,
     ) -> str:
+        supplied_tenant_id = tenant_id
         try:
             async with self._conn.begin_nested():
-                if tenant_id is None:
-                    result = await self._conn.execute(
-                        text("INSERT INTO tenants (name) VALUES (:name) RETURNING id"),
-                        {"name": name},
-                    )
-                    tenant_id = str(result.scalar_one())
-                else:
-                    await self._conn.execute(
-                        text("INSERT INTO tenants (id, name) VALUES (:id, :name)"),
-                        {"id": tenant_id, "name": name},
-                    )
+                result = await self._conn.execute(
+                    text(
+                        "INSERT INTO tenants (id, name) "
+                        "VALUES (COALESCE(:id, gen_random_uuid()), :name) RETURNING id"
+                    ),
+                    {"id": tenant_id, "name": name},
+                )
+                tenant_id = str(result.scalar_one())
         except IntegrityError as exc:
-            raise TenantAlreadyExistsError(f"tenant already exists: {tenant_id}") from exc
+            if supplied_tenant_id is not None:
+                raise TenantAlreadyExistsError(f"tenant already exists: {supplied_tenant_id}") from exc
+            raise
 
         # `tenants` has no RLS policy, so `app.tenant_id` does not need to be
         # set before the insert above -- only `sites`/`users` below check it.

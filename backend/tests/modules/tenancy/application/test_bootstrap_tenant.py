@@ -28,7 +28,8 @@ class _FakeTenantProvisioningRepository:
         self.provisioned.append(kwargs)
         if self._raises:
             raise self._raises
-        return kwargs["tenant_id"] or self._DB_GENERATED_TENANT_ID
+        supplied = kwargs["tenant_id"]
+        return supplied if supplied is not None else self._DB_GENERATED_TENANT_ID
 
 
 class _FakeRbacSeeder:
